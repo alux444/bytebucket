@@ -1,6 +1,6 @@
 # ByteBucket TODOS
 
-C++ self-hosted cloud storage using **Boost.Beast** as the HTTP library.
+C++ self-hosted storage using **Boost.Beast** as the HTTP library.
 
 ---
 
@@ -21,13 +21,19 @@ C++ self-hosted cloud storage using **Boost.Beast** as the HTTP library.
 
 ```
 bytebucket/
-├── src/                # source code
-├── include/            # header files
-├── storage/            # uploaded files storage
-├── data/               # metadata storage (db / jsons)
-├── public/             # web frontend files
-├── tests/              # tests
-└── CMakeLists.txt
+
+├── backend/            # C++ backend source code and headers
+│   ├── data/           # metadata storage (db / jsons)
+│   ├── include/        # backend header files
+│   ├── src/            # backend source code
+│   ├── storage/        # uploaded files storage
+│   ├── tests/          # backend tests
+│   └── CMakeLists.txt  # backend build configuration
+│
+└── frontend/           # React frontend application
+    ├── src/            # React source code
+    └── (React project files)
+
 ```
 
 ## 🌐 HTTP Server (Boost.Beast)
@@ -106,9 +112,8 @@ bytebucket/
 - [ ] File sharing with expiring, password-protected links
 - [ ] User group permissions (editor, viewer, commenter)
 - [ ] Deduplication & compression
-- [ ] Full-Text Search — Enable searching inside documents and file metadata
-- [ ] Encrypted Backups — Automatically back up metadata and files with encryption
-- [ ] Plugin system
+- [ ] Full-text search — Enable searching inside documents and file metadata
+- [ ] Encrypted backups — Automatically back up metadata and files with encryption
 
 ### 🔴 Hard
 
