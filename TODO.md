@@ -91,8 +91,29 @@ bytebucket/
 
 ## 🧠 Future Enhancements
 
-- [ ] File sharing with expiring, password-protected links
-- [ ] File versioning system
+### 🟢 Easy
+
 - [ ] Trash bin / recycle bin functionality
 - [ ] Search by filename, date, or tags
+- [ ] Folder management
+- [ ] Trash auto-cleanup
+- [ ] Activity logs & audit trail
+- [ ] Notification system
+- [ ] Storage quotas & usage monitoring
+
+### 🟡 Medium
+
+- [ ] File sharing with expiring, password-protected links
+- [ ] User group permissions (editor, viewer, commenter)
+- [ ] Deduplication & compression
+- [ ] Full-Text Search — Enable searching inside documents and file metadata
+- [ ] Encrypted Backups — Automatically back up metadata and files with encryption
+- [ ] Plugin system
+
+### 🔴 Hard
+
+- [ ] File versioning system
 - [ ] End-to-end encryption for user files
+- [ ] Multi-device syncing
+- [ ] Conflict resolution
+- [ ] Offline mode
