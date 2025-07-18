@@ -1,0 +1,98 @@
+# ByteBucket TODOS
+
+C++ self-hosted cloud storage using **Boost.Beast** as the HTTP library.
+
+---
+
+## 🛠️ Environment
+
+- [ ] Install a C++17 (or later) compiler (e.g., g++, clang++)
+- [ ] Install [CMake](https://cmake.org/)
+- [ ] Install a C++ package manager like [vcpkg](https://github.com/microsoft/vcpkg) or [conan](https://conan.io/)
+- [ ] Install Boost libraries (especially Boost.Beast) via your package manager  
+       Example with vcpkg:
+  ```bash
+  vcpkg install boost-beast
+  ```
+
+---
+
+## 📁 Project Structure
+
+```
+bytebucket/
+├── src/                # source code
+├── include/            # header files
+├── storage/            # uploaded files storage
+├── data/               # metadata storage (db / jsons)
+├── public/             # web frontend files
+├── tests/              # tests
+└── CMakeLists.txt
+```
+
+## 🌐 HTTP Server (Boost.Beast)
+
+- [ ] Set up a minimal HTTP server with Boost.Beast
+- [ ] Implement routing for:
+  - [ ] `GET /` — serve landing page or status
+  - [ ] `POST /upload` — file upload handler
+  - [ ] `GET /download?file_id=xyz` — file download handler
+- [ ] Handle concurrent connections using `std::thread` or Boost ASIO's async model
+
+## 📤 File Upload / Download
+
+- [ ] Implement multipart/form-data parsing for uploads
+- [ ] Save uploaded files into `storage/` folder
+- [ ] Generate and save file metadata (filename, size, timestamp, user ID)
+- [ ] Serve file downloads via streaming to clients
+
+## 🔐 User Authentication System
+
+- [ ] Create `POST /register` endpoint for user signup
+- [ ] Create `POST /login` endpoint for authentication
+- [ ] Securely store passwords (bcrypt or SHA256 with salt)
+- [ ] Implement session management with tokens or JWTs
+- [ ] Add middleware to validate sessions for protected routes
+
+## 🗃 Metadata Storage
+
+- [ ] Choose database for metadata storage
+- [ ] Define tables:
+  - [ ] `users` (id, username, password_hash)
+  - [ ] `files` (id, user_id, name, size, path, timestamp)
+- [ ] Implement CRUD operations for users and files
+- [ ] Wrap database operations in safe C++ abstractions
+
+## 🧪 Testing
+
+- [ ] Integrate a unit testing framework (e.g., doctest or Catch2)
+- [ ] Write tests for:
+  - [ ] Upload endpoint
+  - [ ] Download endpoint
+  - [ ] Authentication system
+  - [ ] Database operations
+
+## 🌍 Web Interface (Frontend)
+
+- [ ] Create webapp for
+  - [ ] Upload files (drag-and-drop)
+  - [ ] List user files
+  - [ ] Download/delete files
+- [ ] Serve frontend static files from `/public`
+- [ ] Use Fetch API to communicate with backend endpoints
+
+## 🛡️ Security & Stability
+
+- [ ] Use HTTPS (set up OpenSSL with Boost.Beast or run behind a reverse proxy like Nginx)
+- [ ] Sanitize filenames and paths to prevent directory traversal
+- [ ] Enforce file upload size limits
+- [ ] Implement logging for uploads, downloads, and errors
+- [ ] Ensure graceful shutdown saves metadata state
+
+## 🧠 Future Enhancements
+
+- [ ] File sharing with expiring, password-protected links
+- [ ] File versioning system
+- [ ] Trash bin / recycle bin functionality
+- [ ] Search by filename, date, or tags
+- [ ] End-to-end encryption for user files
