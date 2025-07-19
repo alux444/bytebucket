@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test-linux:
+  catch2-tests-linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +22,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: "a42af01b72c28a8e1d7b48107b33e4f286a55ef6"
+          vcpkgGitCommitId: "2024.12.16"
 
       - name: Install Boost and Catch2
         run: |
@@ -49,7 +49,7 @@ jobs:
           # Also run through CTest for additional reporting
           cd build && ctest --output-on-failure --verbose
 
-  test-macos:
+  catch2-tests-macos:
     runs-on: macos-latest
 
     steps:
@@ -63,7 +63,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: "a42af01b72c28a8e1d7b48107b33e4f286a55ef6"
+          vcpkgGitCommitId: "2024.12.16"
 
       - name: Install Boost and Catch2
         run: |
@@ -90,7 +90,7 @@ jobs:
           # Also run through CTest for additional reporting
           cd build && ctest --output-on-failure --verbose
 
-  test-windows:
+  catch2-tests-windows:
     runs-on: windows-latest
 
     steps:
@@ -100,7 +100,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: "a42af01b72c28a8e1d7b48107b33e4f286a55ef6"
+          vcpkgGitCommitId: "2024.12.16"
 
       - name: Install Boost and Catch2
         run: |
