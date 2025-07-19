@@ -1,0 +1,28 @@
+# ByteBucket Backend CI
+name: Build and Test
+
+on:
+  push:
+    branches: [main, develop, feat/*]
+    paths: ["backend/**"]
+  pull_request:
+    branches: [main, develop]
+    paths: ["backend/**"]
+
+jobs:
+  test-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install boost catch2 cmake ninja
+
+      - name: Build and Test
+        working-directory: backend
+        run: |
+          chmod +x dev.sh
+          ./dev.sh check
