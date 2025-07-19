@@ -1,53 +1,52 @@
-#include <boost/beast/core.hpp>
-#include <boost/beast/http.hpp>
-#include <boost/beast/version.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/signal_set.hpp>
-#include <boost/asio/strand.hpp>
-#include <cstdlib>
-#include <iostream>
-#include <memory>
-#include <string>
-#include <thread>
+#include <boost/beast/core.hpp>      // Core Beast functionality
+#include <boost/beast/http.hpp>      // HTTP protocol support
+#include <boost/beast/version.hpp>   // Version information
+#include <boost/asio/ip/tcp.hpp>     // TCP networking
+#include <boost/asio/signal_set.hpp> // Signal handling
+#include <boost/asio/strand.hpp>     // Thread synchronization
+#include <cstdlib>                   // Standard library utilities
+#include <iostream>                  // Input/output streams
+#include <memory>                    // Smart pointers
+#include <string>                    // String handling
+#include <thread>                    // Multi-threading support
 
-namespace beast = boost::beast; // from <boost/beast.hpp>
-namespace http = beast::http;   // from <boost/beast/http.hpp>
-namespace net = boost::asio;    // from <boost/asio.hpp>
-using tcp = net::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
-
-// This function produces an HTTP response for the given request.
-http::message_generator handle_request(http::request<http::string_body> &&req)
+// Request handling
+boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req)
 {
-  // Respond to GET /health
-  if (req.method() == http::verb::get && req.target() == "/health")
+  // GET [health]
+  if (req.method() == boost::beast::http::verb::get && req.target() == "/health")
   {
-    http::response<http::string_body> res{http::status::ok, req.version()};
-    res.set(http::field::server, "ByteBucket-Server");
-    res.set(http::field::content_type, "application/json");
-    res.body() = R"({\"status\":\"ok\"})";
+    boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
+    res.set(boost::beast::http::field::server, "ByteBucket-Server");
+    res.set(boost::beast::http::field::content_type, "application/json");
+    res.body() = R"({"status":"ok"})";
     res.prepare_payload();
     return res;
   }
-  // Default: 404 Not Found
-  http::response<http::string_body> res{http::status::not_found, req.version()};
-  res.set(http::field::server, "ByteBucket-Server");
-  res.set(http::field::content_type, "text/plain");
+
+  boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::not_found, req.version()};
+  res.set(boost::beast::http::field::server, "ByteBucket-Server");
+  res.set(boost::beast::http::field::content_type, "text/plain");
   res.body() = "Not found";
   res.prepare_payload();
   return res;
 }
 
-void do_session(tcp::socket socket)
+// Handle a single client session - reads requests and sends responses
+// Each session runs in its own thread to handle multiple concurrent clients
+void do_session(boost::asio::ip::tcp::socket socket)
 {
-  beast::flat_buffer buffer;
+  boost::beast::flat_buffer buffer; // Buffer for reading HTTP data
   try
   {
+    // Keep the connection alive for multiple requests (HTTP keep-alive)
     for (;;)
     {
-      http::request<http::string_body> req;
-      http::read(socket, buffer, req);
-      auto response = handle_request(std::move(req));
-      beast::write(socket, response);
+      boost::beast::http::request<boost::beast::http::string_body> req;
+      boost::beast::http::read(socket, buffer, req);
+
+      boost::beast::http::message_generator response = handle_request(std::move(req));
+      boost::beast::write(socket, response);
       if (response.keep_alive() == false)
         break;
     }
@@ -62,18 +61,23 @@ int main(int argc, char *argv[])
 {
   try
   {
-    auto const address = net::ip::make_address("0.0.0.0");
+    auto const address = boost::asio::ip::make_address("0.0.0.0"); // Listen on all interfaces
     unsigned short port = 8080;
-    net::io_context ioc{1};
-    tcp::acceptor acceptor{ioc, {address, port}};
+
+    boost::asio::io_context ioc{1};
+    boost::asio::ip::tcp::acceptor acceptor{ioc, {address, port}};
+
     std::cout << "Server started on http://0.0.0.0:8080\n";
-    for (;;)
+    std::cout << "Health check available at: http://0.0.0.0:8080/health\n";
+
+    for (;;) // server loop
     {
-      tcp::socket socket{ioc};
+      boost::asio::ip::tcp::socket socket{ioc};
       acceptor.accept(socket);
+
       std::thread([socket = std::move(socket)]() mutable
                   { do_session(std::move(socket)); })
-          .detach();
+          .detach(); // Detach thread so it runs independently
     }
   }
   catch (const std::exception &e)
