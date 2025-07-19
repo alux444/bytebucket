@@ -12,8 +12,7 @@ C++ self-hosted storage using **Boost.Beast** as the HTTP library.
 - Install Boost libraries (especially Boost.Beast) via your package manager  
   vcpkg:
   ```bash
-  vcpkg install boost-beast
-  vcpkg install catch2
+  vcpkg install boost-beast boost-system boost-thread catch2
   ```
 
 ---
