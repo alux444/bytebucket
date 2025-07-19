@@ -1,0 +1,128 @@
+name: catch2
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "a42af01b72c28a8e1d7b48107b33e4f286a55ef6"
+
+      - name: Install Boost and Catch2
+        run: |
+          $VCPKG_ROOT/vcpkg install boost-system boost-thread catch2
+
+      - name: Configure CMake
+        working-directory: backend
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -G Ninja
+
+      - name: Build
+        working-directory: backend
+        run: cmake --build build
+
+      - name: Run tests
+        working-directory: backend
+        run: |
+          # Run tests directly
+          ./build/bytebucket_tests
+
+          # Also run through CTest for additional reporting
+          cd build && ctest --output-on-failure --verbose
+
+  test-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install cmake ninja
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "a42af01b72c28a8e1d7b48107b33e4f286a55ef6"
+
+      - name: Install Boost and Catch2
+        run: |
+          $VCPKG_ROOT/vcpkg install boost-system boost-thread catch2
+
+      - name: Configure CMake
+        working-directory: backend
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -G Ninja
+
+      - name: Build
+        working-directory: backend
+        run: cmake --build build
+
+      - name: Run tests
+        working-directory: backend
+        run: |
+          # Run tests directly
+          ./build/bytebucket_tests
+
+          # Also run through CTest for additional reporting
+          cd build && ctest --output-on-failure --verbose
+
+  test-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "a42af01b72c28a8e1d7b48107b33e4f286a55ef6"
+
+      - name: Install Boost and Catch2
+        run: |
+          $env:VCPKG_ROOT/vcpkg.exe install boost-system boost-thread catch2 --triplet x64-windows
+
+      - name: Configure CMake
+        working-directory: backend
+        run: |
+          cmake -B build -S . `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -A x64
+
+      - name: Build
+        working-directory: backend
+        run: cmake --build build --config Release
+
+      - name: Run tests
+        working-directory: backend
+        run: |
+          # Run tests directly
+          .\build\Release\bytebucket_tests.exe
+
+          # Also run through CTest for additional reporting
+          cd build; ctest --output-on-failure --verbose -C Release
