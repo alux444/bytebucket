@@ -22,7 +22,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: "2024.12.16"
+          vcpkgGitCommitId: "f7423ee180c4b7f40d43402c2feb3859161ef625"
 
       - name: Install Boost and Catch2
         run: |
@@ -63,7 +63,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: "2024.12.16"
+          vcpkgGitCommitId: "f7423ee180c4b7f40d43402c2feb3859161ef625"
 
       - name: Install Boost and Catch2
         run: |
@@ -100,7 +100,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: "2024.12.16"
+          vcpkgGitCommitId: "f7423ee180c4b7f40d43402c2feb3859161ef625"
 
       - name: Install Boost and Catch2
         run: |
