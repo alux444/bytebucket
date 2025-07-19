@@ -38,11 +38,11 @@ bytebucket/
 
 ## 🌐 HTTP Server (Boost.Beast)
 
-- [ ] Set up a minimal HTTP server with Boost.Beast
-- [ ] Implement routing for:
-  - [ ] `GET /` — serve landing page or status
-  - [ ] `POST /upload` — file upload handler
-  - [ ] `GET /download?file_id=xyz` — file download handler
+- [x] Set up a minimal HTTP server with Boost.Beast
+- [x] Implement routing for:
+  - [x] `GET /` — serve landing page or status
+  - [x] `POST /upload` — file upload handler
+  - [x] `GET /download?file_id=xyz` — file download handler
 - [ ] Handle concurrent connections using `std::thread` or Boost ASIO's async model
 
 ## 📤 File Upload / Download
