@@ -33,7 +33,7 @@ namespace bytebucket
         response<string_body> res{status::ok, req.version()};
         res.set(field::server, "ByteBucket-Server");
         res.set(field::content_type, "text/plain");
-        res.body() = "ByteBucket";
+        res.body() = "ByteBuckets";
         res.prepare_payload();
         return res;
       }
