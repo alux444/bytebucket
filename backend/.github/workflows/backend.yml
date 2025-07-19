@@ -1,0 +1,57 @@
+# ByteBucket Backend CI
+name: Build and Test
+
+on:
+  push:
+    branches: [main, develop, feat/*]
+    paths: ["backend/**"]
+  pull_request:
+    branches: [main, develop]
+    paths: ["backend/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libboost-all-dev cmake ninja-build
+
+          # Install Catch2
+          git clone https://github.com/catchorg/Catch2.git
+          cd Catch2
+          cmake -Bbuild -H. -DBUILD_TESTING=OFF
+          sudo cmake --build build/ --target install
+          cd ..
+
+      - name: Build and Test
+        working-directory: backend
+        run: |
+          chmod +x dev.sh
+          ./dev.sh check
+
+      - name: Run tests with CTest
+        working-directory: backend
+        run: ./dev.sh test-ctest
+
+  test-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install boost catch2 cmake ninja
+
+      - name: Build and Test
+        working-directory: backend
+        run: |
+          chmod +x dev.sh
+          ./dev.sh check
