@@ -9,28 +9,7 @@
 #include <memory>                    // Smart pointers
 #include <string>                    // String handling
 #include <thread>                    // Multi-threading support
-
-// Request handling
-boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req)
-{
-  // GET [health]
-  if (req.method() == boost::beast::http::verb::get && req.target() == "/health")
-  {
-    boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
-    res.set(boost::beast::http::field::server, "ByteBucket-Server");
-    res.set(boost::beast::http::field::content_type, "application/json");
-    res.body() = R"({"status":"ok"})";
-    res.prepare_payload();
-    return res;
-  }
-
-  boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::not_found, req.version()};
-  res.set(boost::beast::http::field::server, "ByteBucket-Server");
-  res.set(boost::beast::http::field::content_type, "text/plain");
-  res.body() = "Not found";
-  res.prepare_payload();
-  return res;
-}
+#include "request_handler.hpp"       // Our request handling logic
 
 // Handle a single client session - reads requests and sends responses
 // Each session runs in its own thread to handle multiple concurrent clients
@@ -45,7 +24,7 @@ void do_session(boost::asio::ip::tcp::socket socket)
       boost::beast::http::request<boost::beast::http::string_body> req;
       boost::beast::http::read(socket, buffer, req);
 
-      boost::beast::http::message_generator response = handle_request(std::move(req));
+      boost::beast::http::message_generator response = bytebucket::handle_request(std::move(req));
       boost::beast::write(socket, response);
       if (response.keep_alive() == false)
         break;

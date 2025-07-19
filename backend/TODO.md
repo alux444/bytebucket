@@ -6,13 +6,14 @@ C++ self-hosted storage using **Boost.Beast** as the HTTP library.
 
 ## 🛠️ Environment
 
-- [ ] Install a C++17 (or later) compiler (e.g., g++, clang++)
-- [ ] Install [CMake](https://cmake.org/)
-- [ ] Install a C++ package manager like [vcpkg](https://github.com/microsoft/vcpkg) or [conan](https://conan.io/)
-- [ ] Install Boost libraries (especially Boost.Beast) via your package manager  
-       Example with vcpkg:
+- Install a C++17 (or later) compiler (e.g., g++, clang++)
+- Install [CMake](https://cmake.org/)
+- Install a C++ package manager like [vcpkg](https://github.com/microsoft/vcpkg)
+- Install Boost libraries (especially Boost.Beast) via your package manager  
+  vcpkg:
   ```bash
   vcpkg install boost-beast
+  vcpkg install catch2
   ```
 
 ---
