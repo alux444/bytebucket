@@ -32,11 +32,11 @@ namespace bytebucket
   {
   public:
     static std::optional<MultipartData> parse(const std::string &body, const std::string &boundary);
+    static std::string extractBoundary(const std::string &content_type);
+    static std::string trim(const std::string &str);
 
   private:
-    static std::string extractBoundary(const std::string &content_type);
     static std::unordered_map<std::string, std::string> parseHeaders(const std::string &header_section);
-    static std::string trim(const std::string &str);
   };
 
 }
