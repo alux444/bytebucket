@@ -11,21 +11,18 @@ This directory contains comprehensive Catch2 tests for the ByteBucket server end
 - `test_unknown_endpoints.cpp` - Tests for undefined endpoints (404 handling)
 - `test_general.cpp` - General request handler tests (HTTP version handling, headers, etc.)
 - `test_helpers.hpp` - Helper functions for testing
+- `test_file_storage.cpp` - Tests for `FileStorage` class
+- `test_multipart_parser.cpp` - Tests for `MultipartParser` class
 
 ## Running Tests
 
 ```bash
-# Build the project
-cmake --build build
-
-# Run tests directly
-./build/bytebucket_tests
-
-# Run tests with detailed output
-./build/bytebucket_tests --success
-
-# Run tests through CTest
-cd build && ctest --verbose
+# run tests
+./dev.sh test
+./dev.sh test-verbose
+./dev.sh test-ctest
+# run tests with watch on
+./dev.sh watch
 ```
 
 ## Test Statistics
