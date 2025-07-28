@@ -88,6 +88,24 @@ namespace bytebucket
         return res;
       }
 
+      if (multipart_data->files.empty())
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        res.body() = R"({"error":"No files found in request"})";
+        return res;
+      }
+
+      std::string response_body = R"({"files":[)";
+      bool first_file = true;
+      for (const auto& file : multipart_data->files)
+      {
+
+      }
+
       // TODO: upload functionality
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
       res.set(boost::beast::http::field::server, SERVER_NAME);
