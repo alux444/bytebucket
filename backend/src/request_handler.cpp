@@ -33,6 +33,32 @@ namespace bytebucket
     // POST [/upload]
     if (req.method() == boost::beast::http::verb::post && req.target() == "/upload")
     {
+      // make sure it's a multipart/form-data
+      auto content_type_it = req.find(boost::beast::http::field::content_type);
+      if (content_type_it == req.end())
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, "ByteBucket-Server");
+        res.set(boost::beast::http::field::content_type, "application/json");
+        res.body() = R"({"error":"Content-Type header is required"})";
+        res.prepare_payload();
+        return res;
+      }
+
+      std::string content_type = std::string(content_type_it->value());
+      if (content_type.find("multipart/form-data") == std::string::npos)
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, "ByteBucket-Server");
+        res.set(boost::beast::http::field::content_type, "application/json");
+        res.body() = R"({"error":"Content-Type should be multipart/form-data"})";
+        res.prepare_payload();
+        return res;
+      }
       // TODO: upload functionality
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
       res.set(boost::beast::http::field::server, "ByteBucket-Server");
