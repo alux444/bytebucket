@@ -9,7 +9,7 @@ TEST_CASE("Download endpoint tests", "[download]")
 
   SECTION("GET /download/test123 returns test file")
   {
-    request<string_body> req{verb::get, "/download/test123", 11};
+    request<string_body> req{verb::get, "/download/test_file", 11};
     req.set(field::host, "localhost");
     req.set(field::user_agent, "test-client");
 
@@ -18,8 +18,8 @@ TEST_CASE("Download endpoint tests", "[download]")
     REQUIRE(response.result() == status::ok);
     REQUIRE(response[field::server] == "ByteBucket-Server");
     REQUIRE(response[field::content_type] == "text/plain");
-    REQUIRE(response[field::content_disposition] == "attachment; filename=\"test_file_test123.txt\"");
-    REQUIRE(response.body() == "Found file ID! test123");
+    REQUIRE(response[field::content_disposition] == "attachment; filename=\"test_file_test_file.txt\"");
+    REQUIRE(response.body() == "Found file ID! test_file");
   }
 
   SECTION("GET /download/nonexistent returns 404")

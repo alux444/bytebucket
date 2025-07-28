@@ -75,9 +75,67 @@ TEST_CASE("Upload endpoint tests", "[upload]")
 
     REQUIRE(response.result() == status::ok);
     REQUIRE(response[field::server] == "ByteBucket-Server");
-    REQUIRE(response[field::content_type] == "application/octet-stream");
-    REQUIRE(response[field::content_disposition] == "attachment; filename=\"uploaded_file\"");
-    REQUIRE(response.body() == multipart_body);
+    REQUIRE(response[field::content_type] == "application/json");
+
+    // Parse and validate JSON response
+    std::string expected_response = R"({"files":[{"id":"test_test.txt_123","filename":"test.txt","content_type":"text/plain","size":25}]})";
+    REQUIRE(response.body() == expected_response);
+  }
+
+  SECTION("POST /upload with multiple files")
+  {
+    request<string_body> req{verb::post, "/upload", 11};
+    req.set(field::host, "localhost");
+    req.set(field::content_type, "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW");
+
+    std::string multipart_body =
+        "------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n"
+        "Content-Disposition: form-data; name=\"file1\"; filename=\"test1.txt\"\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "First file content\r\n"
+        "------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n"
+        "Content-Disposition: form-data; name=\"file2\"; filename=\"test2.txt\"\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "Second file content\r\n"
+        "------WebKitFormBoundary7MA4YWxkTrZu0gW--\r\n";
+
+    req.body() = multipart_body;
+    req.prepare_payload();
+
+    auto response = bytebucket::test::handle_request_direct(std::move(req));
+
+    REQUIRE(response.result() == status::ok);
+    REQUIRE(response[field::server] == "ByteBucket-Server");
+    REQUIRE(response[field::content_type] == "application/json");
+
+    std::string expected_response = R"({"files":[{"id":"test_test1.txt_123","filename":"test1.txt","content_type":"text/plain","size":18},{"id":"test_test2.txt_123","filename":"test2.txt","content_type":"text/plain","size":19}]})";
+    REQUIRE(response.body() == expected_response);
+  }
+
+  SECTION("POST /upload with no files in multipart data")
+  {
+    request<string_body> req{verb::post, "/upload", 11};
+    req.set(field::host, "localhost");
+    req.set(field::content_type, "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW");
+
+    std::string multipart_body =
+        "------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n"
+        "Content-Disposition: form-data; name=\"username\"\r\n"
+        "\r\n"
+        "john_doe\r\n"
+        "------WebKitFormBoundary7MA4YWxkTrZu0gW--\r\n";
+
+    req.body() = multipart_body;
+    req.prepare_payload();
+
+    auto response = bytebucket::test::handle_request_direct(std::move(req));
+
+    REQUIRE(response.result() == status::bad_request);
+    REQUIRE(response[field::server] == "ByteBucket-Server");
+    REQUIRE(response[field::content_type] == "application/json");
+    REQUIRE(response.body() == R"({"error":"No files found in request"})");
   }
 
   SECTION("POST /upload with malformed multipart data")

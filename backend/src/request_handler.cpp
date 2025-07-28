@@ -1,5 +1,6 @@
 #include "request_handler.hpp"
 #include "multipart_parser.hpp"
+#include "file_storage.hpp"
 #include <boost/beast/http.hpp>
 #include <string>
 
@@ -88,13 +89,51 @@ namespace bytebucket
         return res;
       }
 
-      // TODO: upload functionality
+      if (multipart_data->files.empty())
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        res.body() = R"({"error":"No files found in request"})";
+        return res;
+      }
+
+      std::string response_body = R"({"files":[)";
+      bool first_file = true;
+      for (const auto &file : multipart_data->files)
+      {
+        auto file_id = FileStorage::saveFile(file.filename, file.content, file.content_type);
+        if (!file_id.has_value())
+        {
+          boost::beast::http::response<boost::beast::http::string_body> res{
+              boost::beast::http::status::bad_request,
+              req.version()};
+          res.set(boost::beast::http::field::server, SERVER_NAME);
+          res.set(boost::beast::http::field::content_type, "application/json");
+          res.body() = R"({"error":"Failed to save file"})";
+          return res;
+        }
+
+        if (!first_file)
+        {
+          response_body += ",";
+        }
+        first_file = false;
+
+        response_body += R"({"id":")" + file_id.value() + R"(",)";
+        response_body += R"({"filename":")" + file.filename + R"(",)";
+        response_body += R"({"content_type":")" + file.content_type + R"(",)";
+        response_body += R"({"size":")" + std::to_string(file.content.size()) + R"(})";
+      }
+
+      response_body += "]}";
+
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
       res.set(boost::beast::http::field::server, SERVER_NAME);
-      res.set(boost::beast::http::field::content_type, "application/octet-stream");
-      res.set(boost::beast::http::field::content_disposition, "attachment; filename=\"uploaded_file\"");
-
-      res.body() = req.body();
+      res.set(boost::beast::http::field::content_type, "application/json");
+      res.body() = response_body;
       res.prepare_payload();
       return res;
     }
