@@ -51,8 +51,14 @@ namespace bytebucket
         std::string start_boundary = "--" + boundary;
         std::string end_boundary = "--" + boundary + "--";
 
+        if (body.find(start_boundary) == std::string::npos)
+        {
+            return std::nullopt;
+        }
+
         // Split by boundary
         size_t pos = 0;
+        bool found_valid_part = false;
 
         while (pos < body.length())
         {
@@ -135,6 +141,7 @@ namespace bytebucket
                     file.content = std::vector<char>(content_section.begin(), content_section.end());
 
                     result.files.push_back(std::move(file));
+                    found_valid_part = true;
                 }
                 else
                 {
@@ -144,9 +151,15 @@ namespace bytebucket
                     field.value = content_section;
 
                     result.fields.push_back(std::move(field));
+                    found_valid_part = true;
                 }
             }
             pos = next_boundary;
+        }
+
+        if (!found_valid_part)
+        {
+            return std::nullopt;
         }
 
         return result;
