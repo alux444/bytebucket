@@ -3,6 +3,7 @@
 #include <boost/beast/http.hpp>
 #include "request_handler.hpp"
 #include "multipart_parser.hpp"
+#include "file_storage.hpp"
 
 namespace bytebucket
 {
@@ -91,12 +92,45 @@ namespace bytebucket
           return res;
         }
 
-        // Success case - return the request body as-is (for testing)
+        // Check if we have any files to upload
+        if (multipart_data->files.empty())
+        {
+          response<string_body> res{status::bad_request, req.version()};
+          res.set(field::server, "ByteBucket-Server");
+          res.set(field::content_type, "application/json");
+          res.body() = R"({"error":"No files found in request"})";
+          res.prepare_payload();
+          return res;
+        }
+
+        // Mock file storage for testing - return predictable file IDs
+        std::string response_body = R"({"files":[)";
+        bool first_file = true;
+
+        for (const auto &file : multipart_data->files)
+        {
+          // Generate predictable test file ID
+          std::string file_id = "test_" + file.filename + "_123";
+
+          if (!first_file)
+          {
+            response_body += ",";
+          }
+          first_file = false;
+
+          response_body += R"({"id":")" + file_id + R"(",)";
+          response_body += R"("filename":")" + file.filename + R"(",)";
+          response_body += R"("content_type":")" + file.content_type + R"(",)";
+          response_body += R"("size":)" + std::to_string(file.content.size()) + R"(})";
+        }
+
+        response_body += "]}";
+
+        // Success case - return JSON with file info
         response<string_body> res{status::ok, req.version()};
         res.set(field::server, "ByteBucket-Server");
-        res.set(field::content_type, "application/octet-stream");
-        res.set(field::content_disposition, "attachment; filename=\"uploaded_file\"");
-        res.body() = req.body();
+        res.set(field::content_type, "application/json");
+        res.body() = response_body;
         res.prepare_payload();
         return res;
       }
@@ -117,7 +151,8 @@ namespace bytebucket
           return res;
         }
 
-        if (file_id == "test123")
+        // Mock check for file existence (test files start with "test_")
+        if (file_id.length() >= 5 && file_id.substr(0, 5) == "test_")
         {
           response<string_body> res{status::ok, req.version()};
           res.set(field::server, "ByteBucket-Server");
