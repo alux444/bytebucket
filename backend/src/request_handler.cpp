@@ -1,9 +1,11 @@
 #include "request_handler.hpp"
+#include "multipart_parser.hpp"
 #include <boost/beast/http.hpp>
 #include <string>
 
 namespace bytebucket
 {
+  const std::string SERVER_NAME{"ByteBucket-Server"};
 
   boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req)
   {
@@ -11,7 +13,7 @@ namespace bytebucket
     if (req.method() == boost::beast::http::verb::get && req.target() == "/health")
     {
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
-      res.set(boost::beast::http::field::server, "ByteBucket-Server");
+      res.set(boost::beast::http::field::server, SERVER_NAME);
       res.set(boost::beast::http::field::content_type, "application/json");
       res.body() = R"({"status":"ok"})";
       res.prepare_payload();
@@ -23,7 +25,7 @@ namespace bytebucket
     {
       // TODO: adjust to serve frontend files
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
-      res.set(boost::beast::http::field::server, "ByteBucket-Server");
+      res.set(boost::beast::http::field::server, SERVER_NAME);
       res.set(boost::beast::http::field::content_type, "text/plain");
       res.body() = "ByteBucket";
       res.prepare_payload();
@@ -33,9 +35,62 @@ namespace bytebucket
     // POST [/upload]
     if (req.method() == boost::beast::http::verb::post && req.target() == "/upload")
     {
+      // make sure it's a multipart/form-data
+      auto content_type_it = req.find(boost::beast::http::field::content_type);
+      if (content_type_it == req.end())
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        res.body() = R"({"error":"Content-Type header is required"})";
+        res.prepare_payload();
+        return res;
+      }
+
+      std::string content_type = std::string(content_type_it->value());
+      if (content_type.find("multipart/form-data") == std::string::npos)
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        res.body() = R"({"error":"Content-Type should be multipart/form-data"})";
+        res.prepare_payload();
+        return res;
+      }
+
+      // get boundary
+      std::string boundary = MultipartParser::extractBoundary(content_type);
+      if (boundary.empty())
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        res.body() = R"({"error":"Invalid boundary in Content-Type"})";
+        return res;
+      }
+
+      // get multipart data
+      auto multipart_data = MultipartParser::parse(req.body(), boundary);
+      if (!multipart_data.has_value())
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        res.body() = R"({"error":"Failed to parse multipart data"})";
+        return res;
+      }
+
       // TODO: upload functionality
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
-      res.set(boost::beast::http::field::server, "ByteBucket-Server");
+      res.set(boost::beast::http::field::server, SERVER_NAME);
       res.set(boost::beast::http::field::content_type, "application/octet-stream");
       res.set(boost::beast::http::field::content_disposition, "attachment; filename=\"uploaded_file\"");
 
@@ -55,7 +110,7 @@ namespace bytebucket
       if (file_id.empty())
       {
         boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::bad_request, req.version()};
-        res.set(boost::beast::http::field::server, "ByteBucket-Server");
+        res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "application/json");
         res.body() = R"({"error":"File ID is required"})";
         res.prepare_payload();
@@ -65,7 +120,7 @@ namespace bytebucket
       if (file_id == "test123")
       {
         boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
-        res.set(boost::beast::http::field::server, "ByteBucket-Server");
+        res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "text/plain");
         res.set(boost::beast::http::field::content_disposition, "attachment; filename=\"test_file_" + file_id + ".txt\"");
         res.body() = "Found file ID! " + file_id;
@@ -75,7 +130,7 @@ namespace bytebucket
       else
       {
         boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::not_found, req.version()};
-        res.set(boost::beast::http::field::server, "ByteBucket-Server");
+        res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "application/json");
         res.body() = R"({"error":"File not found"})";
         res.prepare_payload();
@@ -84,7 +139,7 @@ namespace bytebucket
     }
 
     boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::not_found, req.version()};
-    res.set(boost::beast::http::field::server, "ByteBucket-Server");
+    res.set(boost::beast::http::field::server, SERVER_NAME);
     res.set(boost::beast::http::field::content_type, "text/plain");
     res.body() = "Not found";
     res.prepare_payload();

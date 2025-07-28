@@ -7,13 +7,68 @@ TEST_CASE("Upload endpoint tests", "[upload]")
 {
   using namespace boost::beast::http;
 
-  SECTION("POST /upload echoes request body")
+  SECTION("POST /upload with missing Content-Type header")
   {
     request<string_body> req{verb::post, "/upload", 11};
     req.set(field::host, "localhost");
-    req.set(field::user_agent, "test-client");
+    req.body() = "This is test file content";
+    req.prepare_payload();
+
+    auto response = bytebucket::test::handle_request_direct(std::move(req));
+
+    REQUIRE(response.result() == status::bad_request);
+    REQUIRE(response[field::server] == "ByteBucket-Server");
+    REQUIRE(response[field::content_type] == "application/json");
+    REQUIRE(response.body() == R"({"error":"Content-Type header is required"})");
+  }
+
+  SECTION("POST /upload with non-multipart Content-Type")
+  {
+    request<string_body> req{verb::post, "/upload", 11};
+    req.set(field::host, "localhost");
     req.set(field::content_type, "text/plain");
     req.body() = "This is test file content";
+    req.prepare_payload();
+
+    auto response = bytebucket::test::handle_request_direct(std::move(req));
+
+    REQUIRE(response.result() == status::bad_request);
+    REQUIRE(response[field::server] == "ByteBucket-Server");
+    REQUIRE(response[field::content_type] == "application/json");
+    REQUIRE(response.body() == R"({"error":"Content-Type should be multipart/form-data"})");
+  }
+
+  SECTION("POST /upload with multipart/form-data but no boundary")
+  {
+    request<string_body> req{verb::post, "/upload", 11};
+    req.set(field::host, "localhost");
+    req.set(field::content_type, "multipart/form-data");
+    req.body() = "This is test file content";
+    req.prepare_payload();
+
+    auto response = bytebucket::test::handle_request_direct(std::move(req));
+
+    REQUIRE(response.result() == status::bad_request);
+    REQUIRE(response[field::server] == "ByteBucket-Server");
+    REQUIRE(response[field::content_type] == "application/json");
+    REQUIRE(response.body() == R"({"error":"Invalid boundary in Content-Type"})");
+  }
+
+  SECTION("POST /upload with valid multipart/form-data")
+  {
+    request<string_body> req{verb::post, "/upload", 11};
+    req.set(field::host, "localhost");
+    req.set(field::content_type, "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW");
+
+    std::string multipart_body =
+        "------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n"
+        "Content-Disposition: form-data; name=\"file\"; filename=\"test.txt\"\r\n"
+        "Content-Type: text/plain\r\n"
+        "\r\n"
+        "This is test file content\r\n"
+        "------WebKitFormBoundary7MA4YWxkTrZu0gW--\r\n";
+
+    req.body() = multipart_body;
     req.prepare_payload();
 
     auto response = bytebucket::test::handle_request_direct(std::move(req));
@@ -22,20 +77,23 @@ TEST_CASE("Upload endpoint tests", "[upload]")
     REQUIRE(response[field::server] == "ByteBucket-Server");
     REQUIRE(response[field::content_type] == "application/octet-stream");
     REQUIRE(response[field::content_disposition] == "attachment; filename=\"uploaded_file\"");
-    REQUIRE(response.body() == "This is test file content");
+    REQUIRE(response.body() == multipart_body);
   }
 
-  SECTION("POST /upload with empty body")
+  SECTION("POST /upload with malformed multipart data")
   {
     request<string_body> req{verb::post, "/upload", 11};
     req.set(field::host, "localhost");
-    req.body() = "";
+    req.set(field::content_type, "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW");
+    req.body() = "invalid multipart data";
     req.prepare_payload();
 
     auto response = bytebucket::test::handle_request_direct(std::move(req));
 
-    REQUIRE(response.result() == status::ok);
-    REQUIRE(response.body() == "");
+    REQUIRE(response.result() == status::bad_request);
+    REQUIRE(response[field::server] == "ByteBucket-Server");
+    REQUIRE(response[field::content_type] == "application/json");
+    REQUIRE(response.body() == R"({"error":"Failed to parse multipart data"})");
   }
 
   SECTION("GET /upload should return 404")
@@ -47,21 +105,5 @@ TEST_CASE("Upload endpoint tests", "[upload]")
 
     REQUIRE(response.result() == status::not_found);
     REQUIRE(response.body() == "Not found");
-  }
-
-  SECTION("POST /upload with large content")
-  {
-    request<string_body> req{verb::post, "/upload", 11};
-    req.set(field::host, "localhost");
-
-    std::string large_content(1024, 'A'); // 1KB of 'A' characters
-    req.body() = large_content;
-    req.prepare_payload();
-
-    auto response = bytebucket::test::handle_request_direct(std::move(req));
-
-    REQUIRE(response.result() == status::ok);
-    REQUIRE(response.body() == large_content);
-    REQUIRE(response.body().size() == 1024);
   }
 }
