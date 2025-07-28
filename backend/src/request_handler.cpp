@@ -75,6 +75,19 @@ namespace bytebucket
         return res;
       }
 
+      // get multipart data
+      auto multipart_data = MultipartParser::parse(req.body(), boundary);
+      if (!multipart_data.has_value())
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        res.body() = R"({"error":"Failed to parse multipart data"})";
+        return res;
+      }
+
       // TODO: upload functionality
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
       res.set(boost::beast::http::field::server, SERVER_NAME);
