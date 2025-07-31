@@ -47,9 +47,9 @@ bytebucket/
 
 ## 📤 File Upload / Download
 
-- [ ] Implement multipart/form-data parsing for uploads
-- [ ] Save uploaded files into `storage/` folder
-- [ ] Generate and save file metadata (filename, size, timestamp, user ID)
+- [x] Implement multipart/form-data parsing for uploads
+- [x] Save uploaded files into `storage/` folder
+- [x] Generate and save file metadata (filename, size, timestamp, user ID)
 - [ ] Serve file downloads via streaming to clients
 
 ## 🔐 User Authentication System

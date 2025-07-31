@@ -8,14 +8,33 @@ namespace bytebucket
 {
   const std::string SERVER_NAME{"ByteBucket-Server"};
 
+  void addCorsHeaders(boost::beast::http::response<boost::beast::http::string_body> &res)
+  {
+    // TODO: specific frontend access control urls
+    res.set(boost::beast::http::field::access_control_allow_origin, "*");
+    res.set(boost::beast::http::field::access_control_allow_methods, "GET, POST, OPTIONS");
+    res.set(boost::beast::http::field::access_control_allow_headers, "Content-Type");
+  }
+
   boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req)
   {
+    // Handle OPTIONS requests for CORS preflight
+    if (req.method() == boost::beast::http::verb::options)
+    {
+      boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
+      res.set(boost::beast::http::field::server, SERVER_NAME);
+      addCorsHeaders(res);
+      res.prepare_payload();
+      return res;
+    }
+
     // GET [health]
     if (req.method() == boost::beast::http::verb::get && req.target() == "/health")
     {
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
       res.set(boost::beast::http::field::server, SERVER_NAME);
       res.set(boost::beast::http::field::content_type, "application/json");
+      addCorsHeaders(res);
       res.body() = R"({"status":"ok"})";
       res.prepare_payload();
       return res;
@@ -28,6 +47,7 @@ namespace bytebucket
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
       res.set(boost::beast::http::field::server, SERVER_NAME);
       res.set(boost::beast::http::field::content_type, "text/plain");
+      addCorsHeaders(res);
       res.body() = "ByteBucket";
       res.prepare_payload();
       return res;
@@ -45,6 +65,7 @@ namespace bytebucket
             req.version()};
         res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
         res.body() = R"({"error":"Content-Type header is required"})";
         res.prepare_payload();
         return res;
@@ -58,6 +79,7 @@ namespace bytebucket
             req.version()};
         res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
         res.body() = R"({"error":"Content-Type should be multipart/form-data"})";
         res.prepare_payload();
         return res;
@@ -72,7 +94,9 @@ namespace bytebucket
             req.version()};
         res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
         res.body() = R"({"error":"Invalid boundary in Content-Type"})";
+        res.prepare_payload();
         return res;
       }
 
@@ -85,7 +109,9 @@ namespace bytebucket
             req.version()};
         res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
         res.body() = R"({"error":"Failed to parse multipart data"})";
+        res.prepare_payload();
         return res;
       }
 
@@ -96,7 +122,9 @@ namespace bytebucket
             req.version()};
         res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
         res.body() = R"({"error":"No files found in request"})";
+        res.prepare_payload();
         return res;
       }
 
@@ -112,7 +140,9 @@ namespace bytebucket
               req.version()};
           res.set(boost::beast::http::field::server, SERVER_NAME);
           res.set(boost::beast::http::field::content_type, "application/json");
+          addCorsHeaders(res);
           res.body() = R"({"error":"Failed to save file"})";
+          res.prepare_payload();
           return res;
         }
 
@@ -123,9 +153,9 @@ namespace bytebucket
         first_file = false;
 
         response_body += R"({"id":")" + file_id.value() + R"(",)";
-        response_body += R"({"filename":")" + file.filename + R"(",)";
-        response_body += R"({"content_type":")" + file.content_type + R"(",)";
-        response_body += R"({"size":")" + std::to_string(file.content.size()) + R"(})";
+        response_body += R"("filename":")" + file.filename + R"(",)";
+        response_body += R"("content_type":")" + file.content_type + R"(",)";
+        response_body += R"("size":")" + std::to_string(file.content.size()) + R"("})";
       }
 
       response_body += "]}";
@@ -133,6 +163,7 @@ namespace bytebucket
       boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
       res.set(boost::beast::http::field::server, SERVER_NAME);
       res.set(boost::beast::http::field::content_type, "application/json");
+      addCorsHeaders(res);
       res.body() = response_body;
       res.prepare_payload();
       return res;
@@ -151,6 +182,7 @@ namespace bytebucket
         boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::bad_request, req.version()};
         res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
         res.body() = R"({"error":"File ID is required"})";
         res.prepare_payload();
         return res;
@@ -162,6 +194,7 @@ namespace bytebucket
         res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "text/plain");
         res.set(boost::beast::http::field::content_disposition, "attachment; filename=\"test_file_" + file_id + ".txt\"");
+        addCorsHeaders(res);
         res.body() = "Found file ID! " + file_id;
         res.prepare_payload();
         return res;
@@ -171,6 +204,7 @@ namespace bytebucket
         boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::not_found, req.version()};
         res.set(boost::beast::http::field::server, SERVER_NAME);
         res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
         res.body() = R"({"error":"File not found"})";
         res.prepare_payload();
         return res;
@@ -180,6 +214,7 @@ namespace bytebucket
     boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::not_found, req.version()};
     res.set(boost::beast::http::field::server, SERVER_NAME);
     res.set(boost::beast::http::field::content_type, "text/plain");
+    addCorsHeaders(res);
     res.body() = "Not found";
     res.prepare_payload();
     return res;
