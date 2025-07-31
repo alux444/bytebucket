@@ -24,9 +24,13 @@ void do_session(boost::asio::ip::tcp::socket socket)
       boost::beast::http::request<boost::beast::http::string_body> req;
       boost::beast::http::read(socket, buffer, req);
 
+      // Store keep_alive status before moving the request
+      bool keep_alive = req.keep_alive();
+      
       boost::beast::http::message_generator response = bytebucket::handle_request(std::move(req));
       boost::beast::write(socket, response);
-      if (response.keep_alive() == false)
+      
+      if (!keep_alive)
         break;
     }
   }
