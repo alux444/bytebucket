@@ -1,7 +1,10 @@
+#pragma once
+
 #include <string>
 #include <vector>
 #include <chrono>
 #include <optional>
+#include <memory>
 
 namespace bytebucket
 {
@@ -10,18 +13,62 @@ namespace bytebucket
   {
     int id;
     std::string name;
-    int folder_id;
-    std::chrono::system_clock::time_point created_at;
-    std::chrono::system_clock::time_point updated_at;
+    int folderId;
+    std::chrono::system_clock::time_point createdAt;
+    std::chrono::system_clock::time_point updatedAt;
     int size;
-    std::string content_type;
-    std::string storage_id;
+    std::string contentType;
+    std::string storageId; // id in local storage folder
   };
 
   struct FolderRecord
   {
     int id;
     std::string name;
-    std::optional<int> parent_id;
+    std::optional<int> parentId;
   };
-};
+
+  class Database
+  {
+  public:
+    static std::shared_ptr<Database> create(const std::string &dbPath = "bytebucket.db");
+
+    Database(const Database &) = delete;
+    Database &operator=(const Database &) = delete;
+    Database(Database &&) = delete;
+    Database &operator=(Database &&) = delete;
+
+    ~Database();
+
+    // files
+    std::optional<int> addFile(
+        std::string_view name,
+        int folderId,
+        int size,
+        std::string_view contentType,
+        std::string_view storageId);
+    std::optional<FileRecord> getFileById(int id) const;
+    std::optional<FileRecord> getFileByStorageId(std::string_view storageId) const;
+    std::vector<FileRecord> getFilesByFolder(int folderId) const;
+    bool updateFileTimestamp(int id);
+    bool deleteFile(int id);
+
+    // folders
+    std::optional<int> insertFolder(std::string_view name, std::optional<int> parentId = std::nullopt);
+    std::optional<FolderRecord> getFolderById(int id) const;
+    std::vector<FolderRecord> getFoldersByParent(std::optional<int> parentId) const;
+    bool deleteFolder(int id);
+
+    // tags
+    std::optional<int> insertTag(std::string_view name);
+    std::optional<int> getTagByName(std::string_view name) const;
+    bool addFileTag(int fileId, int tagId);
+    bool removeFileTag(int fileId, int tagId);
+    std::vector<std::string> getFileTags(int fileId) const;
+
+    // metadata
+    bool setFileMetadata(int fileId, std::string_view key, std::string_view value);
+    std::optional<std::string> getFileMetadata(int fileId, std::string_view key) const;
+    std::vector<std::pair<std::string, std::string>> getAllFileMetadata(std::string_view fileId) const;
+  };
+}
