@@ -9,7 +9,8 @@
 #include <memory>                    // Smart pointers
 #include <string>                    // String handling
 #include <thread>                    // Multi-threading support
-#include "request_handler.hpp"       // Our request handling logic
+#include "request_handler.hpp"
+#include "database.hpp"
 
 // Handle a single client session - reads requests and sends responses
 // Each session runs in its own thread to handle multiple concurrent clients
@@ -26,10 +27,10 @@ void do_session(boost::asio::ip::tcp::socket socket)
 
       // Store keep_alive status before moving the request
       bool keep_alive = req.keep_alive();
-      
+
       boost::beast::http::message_generator response = bytebucket::handle_request(std::move(req));
       boost::beast::write(socket, response);
-      
+
       if (!keep_alive)
         break;
     }
@@ -44,6 +45,15 @@ int main(int argc, char *argv[])
 {
   try
   {
+    std::cout << "Initialising db..." << std::endl;
+    auto db = bytebucket::Database::create();
+    if (!db)
+    {
+      std::cerr << "Failed to initialise db" << std::endl;
+      return EXIT_FAILURE;
+    }
+    std::cout << "Initialised db!" << std::endl;
+
     auto const address = boost::asio::ip::make_address("0.0.0.0"); // Listen on all interfaces
     unsigned short port = 8080;
 
