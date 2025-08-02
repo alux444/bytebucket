@@ -22,6 +22,9 @@ find_package(Boost REQUIRED COMPONENTS thread system)
 # Find Catch2 for testing
 find_package(Catch2 3 REQUIRED)
 
+# Find SQLite3
+find_package(SQLite3 REQUIRED)
+
 # Collect main application sources (excluding main.cpp for testing)
 file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS src/*.cpp)
 
@@ -35,7 +38,10 @@ if(APP_SOURCES)
     target_include_directories(bytebucket_lib PRIVATE 
         ${Boost_INCLUDE_DIRS}
     )
-    target_link_libraries(bytebucket_lib PRIVATE ${Boost_LIBRARIES})
+    target_link_libraries(bytebucket_lib PRIVATE 
+        ${Boost_LIBRARIES}
+        SQLite::SQLite3
+    )
 endif()
 
 # Add main executable
@@ -44,7 +50,10 @@ target_include_directories(bytebucket PRIVATE
     ${Boost_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_link_libraries(bytebucket PRIVATE ${Boost_LIBRARIES})
+target_link_libraries(bytebucket PRIVATE 
+    ${Boost_LIBRARIES}
+    SQLite::SQLite3
+)
 if(APP_SOURCES)
     target_link_libraries(bytebucket PRIVATE bytebucket_lib)
 endif()
@@ -65,6 +74,7 @@ if(TEST_SOURCES)
     )
     target_link_libraries(bytebucket_tests PRIVATE 
         ${Boost_LIBRARIES}
+        SQLite::SQLite3
         Catch2::Catch2WithMain
     )
     if(APP_SOURCES)
