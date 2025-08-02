@@ -13,6 +13,7 @@ C++ self-hosted storage using **Boost.Beast** as the HTTP library.
   vcpkg:
   ```bash
   vcpkg install boost-beast boost-system boost-thread catch2
+  vcpkg install sqlite3
   ```
 
 ---

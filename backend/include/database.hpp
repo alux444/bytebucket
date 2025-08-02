@@ -5,6 +5,7 @@
 #include <chrono>
 #include <optional>
 #include <memory>
+#include <sqlite3.h>
 
 namespace bytebucket
 {
@@ -70,5 +71,23 @@ namespace bytebucket
     bool setFileMetadata(int fileId, std::string_view key, std::string_view value);
     std::optional<std::string> getFileMetadata(int fileId, std::string_view key) const;
     std::vector<std::pair<std::string, std::string>> getAllFileMetadata(std::string_view fileId) const;
+
+  private:
+    explicit Database(sqlite3 *db);
+
+    struct SQLiteDeleter
+    {
+      void operator()(sqlite3 *db)
+      {
+        if (db)
+          sqlite3_close(db);
+      }
+    };
+
+    std::unique_ptr<sqlite3, SQLiteDeleter> db;
+    // when it's destroyed, it should call SQLiteDeleter::operator()(sqlite3*)
+
+    bool executeSchema() const;
+    bool executePragma() const;
   };
 }

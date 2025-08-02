@@ -14,3 +14,12 @@
   - all enforced by the browser, not the server
 - in node when using something like express, can just do `app.use(cors());`
   - in c++, gotta do it manually (lol)
+
+# unique ptr deleter pattern
+
+```cpp
+std::unique_ptr<sqlite3, SQLiteDeleter> db;
+std::unique_ptr<T, D>
+```
+
+when it's destroyed, it should call SQLiteDeleter::operator()(sqlite3\*)
