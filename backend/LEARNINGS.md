@@ -22,4 +22,12 @@ std::unique_ptr<sqlite3, SQLiteDeleter> db;
 std::unique_ptr<T, D>
 ```
 
-when it's destroyed, it should call SQLiteDeleter::operator()(sqlite3\*)
+when it's destroyed, it should call `SQLiteDeleter::operator()(sqlite3*)`
+
+# sqlite execution
+
+```cpp
+sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()), SQLITE_STATIC);
+// SQLITE_STATIC = memory in name.data() is guaranteed until after sqlite is complete with it
+// if not, use SQLITE_TRANSIENT - will immediately make a copy of the string so that it's safe to modify the reference right after the call
+```
