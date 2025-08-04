@@ -1,40 +1,25 @@
 #include <catch2/catch_test_macros.hpp>
-#include <filesystem>
-#include <iostream>
-#include <sqlite3.h>
-#include "database.hpp"
+#include "test_helpers_database.hpp"
+
+using namespace bytebucket;
+using namespace bytebucket::test;
+using TestDatabase = DatabaseTestHelper::TestDatabase;
 
 TEST_CASE("Database creation and initialization", "[database]")
 {
-  using namespace bytebucket;
 
   SECTION("Create database successfully")
   {
-    std::string test_db_path = "test_db_create.db";
+    TestDatabase test_db("create");
 
-    // Clean up any existing test database
-    std::filesystem::remove(test_db_path);
-    std::filesystem::remove(test_db_path + "-wal");
-    std::filesystem::remove(test_db_path + "-shm");
-
-    auto db = Database::create(test_db_path);
-
-    REQUIRE(db != nullptr);
-    REQUIRE(std::filesystem::exists(test_db_path));
-
-    // Cleanup
-    db.reset();
-    std::filesystem::remove(test_db_path);
-    std::filesystem::remove(test_db_path + "-wal");
-    std::filesystem::remove(test_db_path + "-shm");
+    // Database is automatically created and cleaned up
+    REQUIRE(test_db.get() != nullptr);
   }
 
   SECTION("Create database with default path")
   {
     // Clean up any existing default database
-    std::filesystem::remove("bytebucket.db");
-    std::filesystem::remove("bytebucket.db-wal");
-    std::filesystem::remove("bytebucket.db-shm");
+    DatabaseTestHelper::cleanupDatabase("bytebucket.db");
 
     auto db = Database::create();
 
@@ -43,9 +28,7 @@ TEST_CASE("Database creation and initialization", "[database]")
 
     // Cleanup
     db.reset();
-    std::filesystem::remove("bytebucket.db");
-    std::filesystem::remove("bytebucket.db-wal");
-    std::filesystem::remove("bytebucket.db-shm");
+    DatabaseTestHelper::cleanupDatabase("bytebucket.db");
   }
 
   SECTION("Database creation with invalid path returns nullptr")
@@ -61,23 +44,13 @@ TEST_CASE("Database creation and initialization", "[database]")
 
 TEST_CASE("Database schema creation", "[database][schema]")
 {
-  using namespace bytebucket;
-
-  std::string test_db_path = "test_db_schema.db";
-
-  // Clean up any existing test database
-  std::filesystem::remove(test_db_path);
-  std::filesystem::remove(test_db_path + "-wal");
-  std::filesystem::remove(test_db_path + "-shm");
-
-  auto db = Database::create(test_db_path);
-  REQUIRE(db != nullptr);
+  TestDatabase test_db("schema");
 
   SECTION("All required tables are created")
   {
     // We'll directly query the database to verify tables exist
     sqlite3 *raw_db = nullptr;
-    int rc = sqlite3_open(test_db_path.c_str(), &raw_db);
+    int rc = sqlite3_open("test_db_schema.db", &raw_db);
     REQUIRE(rc == SQLITE_OK);
 
     // Check if folders table exists
@@ -122,7 +95,7 @@ TEST_CASE("Database schema creation", "[database][schema]")
   SECTION("Indexes are created")
   {
     sqlite3 *raw_db = nullptr;
-    int rc = sqlite3_open(test_db_path.c_str(), &raw_db);
+    int rc = sqlite3_open("test_db_schema.db", &raw_db);
     REQUIRE(rc == SQLITE_OK);
 
     // Check for some key indexes
@@ -143,42 +116,21 @@ TEST_CASE("Database schema creation", "[database][schema]")
 
     sqlite3_close(raw_db);
   }
-
-  // Cleanup
-  db.reset();
-  std::filesystem::remove(test_db_path);
-  std::filesystem::remove(test_db_path + "-wal");
-  std::filesystem::remove(test_db_path + "-shm");
 }
 
 TEST_CASE("Database RAII and resource management", "[database][raii]")
 {
-  using namespace bytebucket;
-
-  std::string test_db_path = "test_db_raii.db";
-
-  // Clean up any existing test database
-  std::filesystem::remove(test_db_path);
-  std::filesystem::remove(test_db_path + "-wal");
-  std::filesystem::remove(test_db_path + "-shm");
-
   SECTION("Database properly closes when going out of scope")
   {
+    std::string test_db_path = "test_db_raii.db";
+
     {
-      auto db = Database::create(test_db_path);
-      REQUIRE(db != nullptr);
+      TestDatabase test_db("raii");
       REQUIRE(std::filesystem::exists(test_db_path));
-    } // db should be destroyed here
+    } // db should be destroyed and cleaned up here
 
-    // Database file should still exist but connection should be closed
-    REQUIRE(std::filesystem::exists(test_db_path));
-
-    // We should be able to create a new connection
-    auto db2 = Database::create(test_db_path);
-    REQUIRE(db2 != nullptr);
-
-    // Cleanup
-    db2.reset();
+    // Database file should be cleaned up
+    REQUIRE_FALSE(std::filesystem::exists(test_db_path));
   }
 
   SECTION("Shared pointer properly manages lifetime")
@@ -187,10 +139,11 @@ TEST_CASE("Database RAII and resource management", "[database][raii]")
     std::shared_ptr<Database> db2;
 
     {
-      auto temp_db = Database::create(test_db_path);
+      TestDatabase test_db("lifetime");
+      auto temp_db = test_db.get();
       db1 = temp_db;
       db2 = temp_db;
-      REQUIRE(temp_db.use_count() == 3);
+      REQUIRE(temp_db.use_count() == 4);
     }
 
     REQUIRE(db1.use_count() == 2);
@@ -202,33 +155,18 @@ TEST_CASE("Database RAII and resource management", "[database][raii]")
     db2.reset();
     // Database should now be properly closed
   }
-
-  // Cleanup
-  std::filesystem::remove(test_db_path);
-  std::filesystem::remove(test_db_path + "-wal");
-  std::filesystem::remove(test_db_path + "-shm");
 }
 
 TEST_CASE("Database copy/move semantics", "[database][semantics]")
 {
-  using namespace bytebucket;
-
-  std::string test_db_path = "test_db_semantics.db";
-
-  // Clean up any existing test database
-  std::filesystem::remove(test_db_path);
-  std::filesystem::remove(test_db_path + "-wal");
-  std::filesystem::remove(test_db_path + "-shm");
-
-  auto db = Database::create(test_db_path);
-  REQUIRE(db != nullptr);
+  TestDatabase test_db("semantics");
 
   SECTION("Database is not copyable")
   {
     // These should not compile if uncommented:
-    // Database db_copy(*db);
-    // Database db_copy2 = *db;
-    // *db = *db;
+    // Database db_copy(*test_db.get());
+    // Database db_copy2 = *test_db.get();
+    // *test_db.get() = *test_db.get();
 
     // This test passes if the code compiles (copy operations are deleted)
     REQUIRE(true);
@@ -237,16 +175,10 @@ TEST_CASE("Database copy/move semantics", "[database][semantics]")
   SECTION("Database is not movable")
   {
     // These should not compile if uncommented:
-    // Database db_move(std::move(*db));
-    // Database db_move2 = std::move(*db);
+    // Database db_move(std::move(*test_db.get()));
+    // Database db_move2 = std::move(*test_db.get());
 
     // This test passes if the code compiles (move operations are deleted)
     REQUIRE(true);
   }
-
-  // Cleanup
-  db.reset();
-  std::filesystem::remove(test_db_path);
-  std::filesystem::remove(test_db_path + "-wal");
-  std::filesystem::remove(test_db_path + "-shm");
 }

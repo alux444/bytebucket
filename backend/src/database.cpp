@@ -111,4 +111,63 @@ namespace bytebucket
     return true;
   }
 
+#pragma region files
+  std::optional<int> Database::addFile(
+      std::string_view name,
+      int folderId,
+      int size,
+      std::string_view contentType,
+      std::string_view storageId)
+  {
+    const char *sql = R"(
+      INSERT INTO files (name, folder_id, created_at, updated_at, size, content_type, storage_id) 
+      VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+      return std::nullopt;
+
+    sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()), SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, folderId);
+    sqlite3_bind_int(stmt, 3, size);
+    sqlite3_bind_text(stmt, 4, contentType.data(), static_cast<int>(contentType.size()), SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 5, storageId.data(), static_cast<int>(storageId.size()), SQLITE_STATIC);
+
+    int returnCode = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (returnCode != SQLITE_DONE)
+      return std::nullopt;
+
+    return static_cast<int>(sqlite3_last_insert_rowid(db.get()));
+  }
+#pragma endregion files
+
+#pragma region folders
+  std::optional<int> Database::insertFolder(std::string_view name, std::optional<int> parentId)
+  {
+    const char *sql = R"(
+      INSERT INTO folders (name, parent_id) 
+      VALUES (?, ?)
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+      return std::nullopt;
+
+    sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()), SQLITE_STATIC);
+    if (parentId.has_value())
+      sqlite3_bind_int(stmt, 2, parentId.value());
+    else
+      sqlite3_bind_null(stmt, 2);
+
+    int returnCode = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (returnCode != SQLITE_DONE)
+      return std::nullopt;
+
+    return static_cast<int>(sqlite3_last_insert_rowid(db.get()));
+  }
+#pragma endregion folders
+
 }
