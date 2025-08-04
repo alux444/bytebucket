@@ -1,6 +1,6 @@
 # ByteBucket TODOS
 
-C++ self-hosted storage using **Boost.Beast** as the HTTP library.
+C++ self-hosted file browser using **Boost.Beast** as the HTTP library.
 
 ---
 
@@ -24,10 +24,10 @@ C++ self-hosted storage using **Boost.Beast** as the HTTP library.
 bytebucket/
 
 ├── backend/            # C++ backend source code and headers
-│   ├── data/           # metadata storage (db / jsons)
+│   ├── data/           # metadata storage (SQLite database)
 │   ├── include/        # backend header files
 │   ├── src/            # backend source code
-│   ├── storage/        # uploaded files storage
+│   ├── storage/        # uploaded files storage (blob storage)
 │   ├── tests/          # backend tests
 │   └── CMakeLists.txt  # backend build configuration
 │
@@ -42,84 +42,189 @@ bytebucket/
 - [x] Set up a minimal HTTP server with Boost.Beast
 - [x] Implement routing for:
   - [x] `GET /` — serve landing page or status
-  - [x] `POST /upload` — file upload handler
-  - [x] `GET /download?file_id=xyz` — file download handler
-- [ ] Handle concurrent connections using `std::thread` or Boost ASIO's async model
+  - [x] `GET /health` — health check endpoint
+  - [x] `POST /folder` — create folder endpoint
+  - [ ] `POST /file` — file upload handler
+  - [x] `GET /download/{file_id}` — file download handler
+- [ ] Handle concurrent connections using `std::thread`
+- [ ] Add CORS headers for frontend integration
+
+## 📂 Folder Management System
+
+- [x] Create folder structure in database (hierarchical)
+- [x] Implement `POST /folder` endpoint for creating folders
+  - [x] Support root folders (no parent)
+  - [x] Support nested folders (with parent_id)
+- [ ] Implement folder listing endpoints:
+  - [ ] `GET /folders` — list all root folders
+  - [ ] `GET /folders/{folder_id}` — get folder details and contents
+  - [ ] `GET /folders/{folder_id}/children` — list subfolders and files
+- [ ] Implement folder operations:
+  - [ ] `PUT /folders/{folder_id}` — rename folder
+  - [ ] `DELETE /folders/{folder_id}` — delete folder (and contents)
+  - [ ] `POST /folders/{folder_id}/move` — move folder to different parent
 
 ## 📤 File Upload / Download
 
 - [x] Implement multipart/form-data parsing for uploads
-- [x] Save uploaded files into `storage/` folder
-- [x] Generate and save file metadata (filename, size, timestamp, user ID)
-- [ ] Serve file downloads via streaming to clients
+- [x] Save uploaded files into `storage/` folder with unique IDs
+- [x] Generate and save file metadata (filename, size, timestamp, content_type)
+- [x] Link files to folders in database
+- [ ] Implement file upload to specific folder:
+  - [ ] `POST /folders/{folder_id}/upload` — upload file to folder
+- [ ] Serve file downloads via streaming:
+  - [ ] `GET /download/{storage_id}` — download file by storage ID
+  - [ ] Include proper content headers (filename, content-type)
+- [ ] File operations:
+  - [ ] `PUT /files/{file_id}` — rename file
+  - [ ] `DELETE /files/{file_id}` — delete file
+  - [ ] `POST /files/{file_id}/move` — move file to different folder
 
-## 🔐 User Authentication System
+## 🗃 Database Schema & Operations
 
-- [ ] Create `POST /register` endpoint for user signup
-- [ ] Create `POST /login` endpoint for authentication
-- [ ] Securely store passwords (bcrypt or SHA256 with salt)
-- [ ] Implement session management with tokens or JWTs
-- [ ] Add middleware to validate sessions for protected routes
+- [x] SQLite database with tables:
+  - [x] `folders` (id, name, parent_id, created_at)
+  - [x] `files` (id, name, folder_id, size, content_type, storage_id, created_at, updated_at)
+  - [x] `tags` (id, name) — for future file tagging
+  - [x] `file_tags` (file_id, tag_id) — many-to-many relationship
+  - [x] `file_metadata` (file_id, key, value) — custom metadata
+- [x] Implement database operations:
+  - [x] `insertFolder()` — create new folder
+  - [x] `addFile()` — add file record to database
+  - [ ] `getFolderById()` — get folder details
+  - [ ] `getFoldersByParent()` — list folders by parent
+  - [ ] `getFilesByFolder()` — list files in folder
+  - [ ] `updateFolder()` — rename folder
+  - [ ] `deleteFolder()` — remove folder and cascade
+  - [ ] `updateFile()` — rename file
+  - [ ] `deleteFile()` — remove file record
+  - [ ] `moveFile()` — change file's folder
+  - [ ] `moveFolder()` — change folder's parent
 
-## 🗃 Metadata Storage
+## 🌍 File Browser Interface (Frontend)
 
-- [ ] Choose database for metadata storage
-- [ ] Define tables:
-  - [ ] `users` (id, username, password_hash)
-  - [ ] `files` (id, user_id, name, size, path, timestamp)
-- [ ] Implement CRUD operations for users and files
-- [ ] Wrap database operations in safe C++ abstractions
+- [ ] Create Google Drive-like interface with:
+  - [ ] **Folder Tree Navigation** — sidebar with expandable folder tree
+  - [ ] **Breadcrumb Navigation** — current path display
+  - [ ] **Main Content Area** — files and folders in current directory
+  - [ ] **File Grid/List View** — toggle between grid and list layouts
+  - [ ] **Upload Zone** — drag-and-drop file upload
+- [ ] Folder operations:
+  - [ ] Create new folder button
+  - [ ] Right-click context menu (rename, delete, move)
+  - [ ] Folder double-click to navigate
+- [ ] File operations:
+  - [ ] File preview/thumbnails
+  - [ ] Download files
+  - [ ] Right-click context menu (rename, delete, move, share)
+  - [ ] File details panel (size, type, date, metadata)
+- [ ] Bulk operations:
+  - [ ] Multi-select files/folders
+  - [ ] Bulk move, delete, download
+
+## 🔄 Advanced File Operations
+
+- [ ] **Cut/Copy/Paste System**:
+  - [ ] `POST /clipboard/cut` — mark items for moving
+  - [ ] `POST /clipboard/copy` — mark items for copying
+  - [ ] `POST /folders/{folder_id}/paste` — paste items to folder
+- [ ] **Search & Filter**:
+  - [ ] `GET /search?q={query}&folder_id={id}` — search files/folders
+  - [ ] Filter by file type, date range, size
+  - [ ] Search within folder hierarchy
+- [ ] **File Sharing**:
+  - [ ] `POST /files/{file_id}/share` — create shareable link
+  - [ ] `GET /shared/{share_token}` — access shared file
+  - [ ] Link expiration and password protection
 
 ## 🧪 Testing
 
-- [ ] Integrate a unit testing framework (e.g., doctest or Catch2)
-- [ ] Write tests for:
-  - [ ] Upload endpoint
-  - [ ] Download endpoint
-  - [ ] Authentication system
-  - [ ] Database operations
+- [x] Integrate Catch2 testing framework
+- [x] Write tests for:
+  - [x] Database operations (folders, files)
+  - [x] Basic HTTP endpoints
+  - [ ] File upload/download endpoints
+  - [ ] Folder management endpoints
+  - [ ] File operations endpoints
+  - [ ] Error handling and edge cases
 
-## 🌍 Web Interface (Frontend)
+## 🔐 User Authentication System (Future)
 
-- [ ] Create webapp for
-  - [ ] Upload files (drag-and-drop)
-  - [ ] List user files
-  - [ ] Download/delete files
-- [ ] Serve frontend static files from `/public`
-- [ ] Use Fetch API to communicate with backend endpoints
+- [ ] Create `POST /register` endpoint for user signup
+- [ ] Create `POST /login` endpoint for authentication
+- [ ] Implement session management with JWTs
+- [ ] Add user ownership to folders and files:
+  - [ ] Add `user_id` to folders and files tables
+  - [ ] Filter operations by user ownership
+- [ ] User permissions and sharing:
+  - [ ] Folder sharing between users
+  - [ ] Read/write permissions system
 
 ## 🛡️ Security & Stability
 
-- [ ] Use HTTPS (set up OpenSSL with Boost.Beast or run behind a reverse proxy like Nginx)
-- [ ] Sanitize filenames and paths to prevent directory traversal
-- [ ] Enforce file upload size limits
-- [ ] Implement logging for uploads, downloads, and errors
-- [ ] Ensure graceful shutdown saves metadata state
+- [ ] **File System Security**:
+  - [ ] Sanitize filenames and paths to prevent directory traversal
+  - [ ] Validate file types and sizes
+  - [ ] Implement storage quotas per user
+- [ ] **API Security**:
+  - [ ] Rate limiting on upload/download endpoints
+  - [ ] CSRF protection
+  - [ ] Input validation for all endpoints
+- [ ] **Infrastructure**:
+  - [ ] Use HTTPS (OpenSSL with Boost.Beast or reverse proxy)
+  - [ ] Implement comprehensive logging
+  - [ ] Graceful shutdown with cleanup
+  - [ ] Database connection pooling
 
 ## 🧠 Future Enhancements
 
 ### 🟢 Easy
 
-- [ ] Trash bin / recycle bin functionality
-- [ ] Search by filename, date, or tags
-- [ ] Folder management
-- [ ] Trash auto-cleanup
-- [ ] Activity logs & audit trail
-- [ ] Notification system
-- [ ] Storage quotas & usage monitoring
+- [ ] **File Metadata & Tagging**:
+  - [ ] Add custom tags to files
+  - [ ] File description and notes
+  - [ ] File favorites/bookmarks
+- [ ] **UI Improvements**:
+  - [ ] File type icons and thumbnails
+  - [ ] Keyboard shortcuts (Ctrl+C, Ctrl+V, Delete, etc.)
+  - [ ] Progress indicators for uploads/downloads
+  - [ ] Recent files and frequently accessed
+- [ ] **Storage Management**:
+  - [ ] Storage usage statistics
+  - [ ] Trash bin with restore functionality
+  - [ ] Auto-cleanup of old trash items
 
 ### 🟡 Medium
 
-- [ ] File sharing with expiring, password-protected links
-- [ ] User group permissions (editor, viewer, commenter)
-- [ ] Deduplication & compression
-- [ ] Full-text search — Enable searching inside documents and file metadata
-- [ ] Encrypted backups — Automatically back up metadata and files with encryption
+- [ ] **Advanced File Operations**:
+  - [ ] File versioning system
+  - [ ] Duplicate file detection and deduplication
+  - [ ] Batch file operations (rename, convert)
+  - [ ] ZIP folder download
+- [ ] **Collaboration Features**:
+  - [ ] Real-time collaboration on folders
+  - [ ] Activity feed and notifications
+  - [ ] Comments on files and folders
+  - [ ] User groups and team folders
+- [ ] **Search & Discovery**:
+  - [ ] Full-text search inside documents
+  - [ ] Smart folders based on criteria
+  - [ ] File recommendation system
 
 ### 🔴 Hard
 
-- [ ] File versioning system
-- [ ] End-to-end encryption for user files
-- [ ] Multi-device syncing
-- [ ] Conflict resolution
-- [ ] Offline mode
+- [ ] **Sync & Backup**:
+  - [ ] Multi-device synchronization
+  - [ ] Offline mode with conflict resolution
+  - [ ] Automated backups with encryption
+  - [ ] Delta sync for large files
+- [ ] **Advanced Security**:
+  - [ ] End-to-end encryption for sensitive files
+  - [ ] Two-factor authentication
+  - [ ] Audit logs and compliance features
+  - [ ] Advanced permission system (ACLs)
+- [ ] **Performance & Scale**:
+  - [ ] Distributed storage backend
+  - [ ] CDN integration for downloads
+  - [ ] Database sharding for large datasets
+  - [ ] Caching layer for metadata operations
