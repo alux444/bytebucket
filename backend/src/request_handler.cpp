@@ -1,6 +1,7 @@
 #include "request_handler.hpp"
 #include "multipart_parser.hpp"
 #include "file_storage.hpp"
+#include "database.hpp"
 #include <boost/beast/http.hpp>
 #include <string>
 
@@ -49,6 +50,147 @@ namespace bytebucket
       res.set(boost::beast::http::field::content_type, "text/plain");
       addCorsHeaders(res);
       res.body() = "ByteBucket";
+      res.prepare_payload();
+      return res;
+    }
+
+    // POST [/folder]
+    if (req.method() == boost::beast::http::verb::post && req.target() == "/folder")
+    {
+      auto content_type_it = req.find(boost::beast::http::field::content_type);
+      if (content_type_it == req.end() ||
+          content_type_it->value().find("application/json") == std::string::npos)
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
+        res.body() = R"({"error":"Content-Type must be application/json"})";
+        res.prepare_payload();
+        return res;
+      }
+
+      std::string body = req.body();
+      std::string folder_name;
+      std::optional<int> parent_id;
+
+      size_t name_pos = body.find("\"name\"");
+      if (name_pos == std::string::npos)
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
+        res.body() = R"({"error":"Missing 'name' field in JSON"})";
+        res.prepare_payload();
+        return res;
+      }
+
+      size_t colon_pos = body.find(":", name_pos);
+      size_t quote_start = body.find("\"", colon_pos);
+      size_t quote_end = body.find("\"", quote_start + 1);
+      if (colon_pos == std::string::npos || quote_start == std::string::npos || quote_end == std::string::npos)
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
+        res.body() = R"({"error":"Invalid 'name' field in JSON"})";
+        res.prepare_payload();
+        return res;
+      }
+
+      folder_name = body.substr(quote_start + 1, quote_end - quote_start - 2);
+      if (folder_name.empty())
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
+        res.body() = R"({"error":"Folder name can't be empty"})";
+        res.prepare_payload();
+        return res;
+      }
+
+      size_t parent_pos = body.find("\"parent_id\"");
+      if (parent_pos != std::string::npos)
+      {
+        size_t colon_pos = body.find(":", parent_pos);
+        size_t number_start = body.find_first_of("0123456789", colon_pos + 1);
+        size_t number_end = body.find_first_not_of("0123456789", number_start);
+
+        try
+        {
+          parent_id = std::stoi(body.substr(number_start, number_end - number_start));
+        }
+        catch (...)
+        {
+          boost::beast::http::response<boost::beast::http::string_body> res{
+              boost::beast::http::status::bad_request,
+              req.version()};
+          res.set(boost::beast::http::field::server, SERVER_NAME);
+          res.set(boost::beast::http::field::content_type, "application/json");
+          addCorsHeaders(res);
+          res.body() = R"({"error":"Failed to parse parent_id. Expected argument is integer with no quotes, otherwise omitted for no parent id. "})";
+          res.prepare_payload();
+          return res;
+        }
+      }
+
+      auto db = Database::create();
+      if (!db)
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
+        res.body() = R"({"error":"Database connection failed"})";
+        res.prepare_payload();
+        return res;
+      }
+
+      auto folder_id = db->insertFolder(folder_name, parent_id);
+      if (!folder_id.has_value())
+      {
+        boost::beast::http::response<boost::beast::http::string_body> res{
+            boost::beast::http::status::bad_request,
+            req.version()};
+        res.set(boost::beast::http::field::server, SERVER_NAME);
+        res.set(boost::beast::http::field::content_type, "application/json");
+        addCorsHeaders(res);
+        res.body() = R"({"error":"Failed to create folder"})";
+        res.prepare_payload();
+        return res;
+      }
+
+      std::ostringstream res_oss;
+      res_oss << "{";
+      res_oss << R"("id":)" << folder_id.value();
+      res_oss << R"(,"name":")" << folder_name;
+      res_oss << R"(")";
+
+      if (parent_id.has_value())
+        res_oss << R"(,"parent_id":")" << parent_id.value();
+      else
+        res_oss << R"(,"parent_id":null)";
+
+      res_oss << "}";
+
+      boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::created, req.version()};
+      res.set(boost::beast::http::field::server, SERVER_NAME);
+      res.set(boost::beast::http::field::content_type, "application/json");
+      addCorsHeaders(res);
+      res.body() = res_oss.str();
       res.prepare_payload();
       return res;
     }
@@ -219,5 +361,4 @@ namespace bytebucket
     res.prepare_payload();
     return res;
   }
-
 }
