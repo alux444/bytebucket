@@ -29,6 +29,27 @@ namespace bytebucket
     std::optional<int> parentId;
   };
 
+  enum class DatabaseError
+  {
+    Success,
+    ForeignKeyConstraint,
+    NotNullConstraint,
+    UniqueConstraint,
+    PrepareStatementFailed,
+    UnknownError
+  };
+
+  template <typename T>
+  struct DatabaseResult
+  {
+    std::optional<T> value;
+    DatabaseError error = DatabaseError::Success;
+    std::string errorMessage;
+
+    bool success() const { return error == DatabaseError::Success; }
+    explicit operator bool() const { return success(); }
+  };
+
   class Database
   {
   public:
@@ -42,7 +63,7 @@ namespace bytebucket
     ~Database();
 
     // files
-    std::optional<int> addFile(
+    DatabaseResult<int> addFile(
         std::string_view name,
         int folderId,
         int size,
@@ -55,13 +76,13 @@ namespace bytebucket
     bool deleteFile(int id);
 
     // folders
-    std::optional<int> insertFolder(std::string_view name, std::optional<int> parentId = std::nullopt);
+    DatabaseResult<int> insertFolder(std::string_view name, std::optional<int> parentId = std::nullopt);
     std::optional<FolderRecord> getFolderById(int id) const;
     std::vector<FolderRecord> getFoldersByParent(std::optional<int> parentId) const;
     bool deleteFolder(int id);
 
     // tags
-    std::optional<int> insertTag(std::string_view name);
+    DatabaseResult<int> insertTag(std::string_view name);
     std::optional<int> getTagByName(std::string_view name) const;
     bool addFileTag(int fileId, int tagId);
     bool removeFileTag(int fileId, int tagId);
