@@ -30,6 +30,7 @@ namespace bytebucket
   {
     const char *pragmas[] = {
         "PRAGMA foreign_keys = ON;",
+        "PRAGMA defer_foreign_keys = OFF;",
         "PRAGMA journal_mode = WAL;", // write ahead logging
         "PRAGMA synchronous = NORMAL;"};
 
@@ -144,11 +145,14 @@ namespace bytebucket
     sqlite3_finalize(stmt);
     if (returnCode != SQLITE_DONE)
     {
-      switch (returnCode)
+      int extendedErrorCode = sqlite3_extended_errcode(db.get());
+      std::string errorMsg = sqlite3_errmsg(db.get());
+
+      switch (extendedErrorCode)
       {
       case SQLITE_CONSTRAINT_FOREIGNKEY:
         result.error = DatabaseError::ForeignKeyConstraint;
-        result.errorMessage = "Parent folder doesn't exist";
+        result.errorMessage = "Folder doesn't exist";
         break;
       case SQLITE_CONSTRAINT_NOTNULL:
         result.error = DatabaseError::NotNullConstraint;
@@ -156,15 +160,15 @@ namespace bytebucket
         break;
       case SQLITE_CONSTRAINT_UNIQUE:
         result.error = DatabaseError::UniqueConstraint;
-        result.errorMessage = "A folder with this storage ID already exists in the parent directory";
+        result.errorMessage = "A file with this storage ID already exists";
         break;
       case SQLITE_CONSTRAINT:
         result.error = DatabaseError::UnknownError;
-        result.errorMessage = "Constraint violation: " + std::string(sqlite3_errmsg(db.get()));
+        result.errorMessage = "Constraint violation: " + errorMsg;
         break;
       default:
         result.error = DatabaseError::UnknownError;
-        result.errorMessage = "Database error: " + std::string(sqlite3_errmsg(db.get()));
+        result.errorMessage = "Database error: " + errorMsg;
         break;
       }
       return result;
@@ -203,7 +207,10 @@ namespace bytebucket
     sqlite3_finalize(stmt);
     if (returnCode != SQLITE_DONE)
     {
-      switch (returnCode)
+      int extendedErrorCode = sqlite3_extended_errcode(db.get());
+      std::string errorMsg = sqlite3_errmsg(db.get());
+
+      switch (extendedErrorCode)
       {
       case SQLITE_CONSTRAINT_FOREIGNKEY:
         result.error = DatabaseError::ForeignKeyConstraint;
@@ -219,11 +226,11 @@ namespace bytebucket
         break;
       case SQLITE_CONSTRAINT:
         result.error = DatabaseError::UnknownError;
-        result.errorMessage = "Constraint violation: " + std::string(sqlite3_errmsg(db.get()));
+        result.errorMessage = "Constraint violation: " + errorMsg;
         break;
       default:
         result.error = DatabaseError::UnknownError;
-        result.errorMessage = "Database error: " + std::string(sqlite3_errmsg(db.get()));
+        result.errorMessage = "Database error: " + errorMsg;
         break;
       }
       return result;

@@ -67,29 +67,32 @@ namespace bytebucket
         std::shared_ptr<Database> db;
       };
 
-      // Helper to create a test folder
+      // Helper to create a test folder - updated for DatabaseResult
       static std::optional<int> createTestFolder(std::shared_ptr<Database> db,
                                                  const std::string &name = "TestFolder")
       {
-        auto folder_id = db->insertFolder(name);
-        REQUIRE(folder_id.has_value());
-        return folder_id;
+        auto result = db->insertFolder(name);
+        REQUIRE(result.success());
+        REQUIRE(result.value.has_value());
+        return result.value;
       }
 
-      // Helper to create multiple test folders
+      // Helper to create multiple test folders - updated for DatabaseResult
       static std::vector<int> createTestFolders(std::shared_ptr<Database> db,
                                                 const std::vector<std::string> &names)
       {
         std::vector<int> folder_ids;
         for (const auto &name : names)
         {
-          auto folder_id = createTestFolder(db, name);
-          folder_ids.push_back(folder_id.value());
+          auto result = db->insertFolder(name);
+          REQUIRE(result.success());
+          REQUIRE(result.value.has_value());
+          folder_ids.push_back(result.value.value());
         }
         return folder_ids;
       }
 
-      // Helper to create a test file
+      // Helper to create a test file - updated for DatabaseResult
       static std::optional<int> createTestFile(std::shared_ptr<Database> db,
                                                int folder_id,
                                                const std::string &name = "test.txt",
@@ -97,9 +100,10 @@ namespace bytebucket
                                                const std::string &content_type = "text/plain",
                                                const std::string &storage_id = "storage123")
       {
-        auto file_id = db->addFile(name, folder_id, size, content_type, storage_id);
-        REQUIRE(file_id.has_value());
-        return file_id;
+        auto result = db->addFile(name, folder_id, size, content_type, storage_id);
+        REQUIRE(result.success());
+        REQUIRE(result.value.has_value());
+        return result.value;
       }
     };
 
