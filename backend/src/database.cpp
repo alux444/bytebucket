@@ -245,6 +245,25 @@ namespace bytebucket
     sqlite3_finalize(stmt);
     return folders;
   }
+
+  bool Database::deleteFolder(int id)
+  {
+    const char *deleteSql = R"(
+      DELETE FROM folders 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *deleteStmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), deleteSql, -1, SQLITE_PREPARE_PERSISTENT, &deleteStmt, nullptr) != SQLITE_OK)
+      return false;
+
+    sqlite3_bind_int(deleteStmt, 1, id);
+
+    int returnCode = sqlite3_step(deleteStmt);
+    sqlite3_finalize(deleteStmt);
+
+    return returnCode == SQLITE_DONE && sqlite3_changes(db.get()) > 0;
+  }
 #pragma endregion folders
 
 }
