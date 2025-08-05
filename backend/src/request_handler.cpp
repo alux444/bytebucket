@@ -70,26 +70,20 @@ namespace bytebucket
   boost::beast::http::response<boost::beast::http::string_body>
   handle_post_folder(const boost::beast::http::request<boost::beast::http::string_body> &req)
   {
-    // Validate Content-Type
     auto content_type_it = req.find(boost::beast::http::field::content_type);
     if (content_type_it == req.end() ||
         content_type_it->value().find("application/json") == std::string::npos)
-    {
       return create_error_response(boost::beast::http::status::bad_request, req.version(),
                                    "Content-Type must be application/json");
-    }
 
     std::string body = req.body();
     std::string folder_name;
     std::optional<int> parent_id;
 
-    // Parse folder name
     size_t name_pos = body.find("\"name\"");
     if (name_pos == std::string::npos)
-    {
       return create_error_response(boost::beast::http::status::bad_request, req.version(),
                                    "Missing 'name' field in JSON");
-    }
 
     size_t colon_pos = body.find(":", name_pos);
     size_t quote_start = body.find("\"", colon_pos);
