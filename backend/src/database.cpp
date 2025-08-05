@@ -54,7 +54,8 @@ namespace bytebucket
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         parent_id INTEGER,
-        FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE SET NULL
+        FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE,
+        UNIQUE (name, parent_id)
       );
 
       CREATE TABLE IF NOT EXISTS files (
@@ -112,13 +113,14 @@ namespace bytebucket
   }
 
 #pragma region files
-  std::optional<int> Database::addFile(
+  DatabaseResult<int> Database::addFile(
       std::string_view name,
       int folderId,
       int size,
       std::string_view contentType,
       std::string_view storageId)
   {
+    DatabaseResult<int> result;
     const char *sql = R"(
       INSERT INTO files (name, folder_id, created_at, updated_at, size, content_type, storage_id) 
       VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)
@@ -126,7 +128,11 @@ namespace bytebucket
     sqlite3_stmt *stmt = nullptr;
 
     if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
-      return std::nullopt;
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare file insert statement";
+      return result;
+    }
 
     sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()), SQLITE_STATIC);
     sqlite3_bind_int(stmt, 2, folderId);
@@ -137,15 +143,43 @@ namespace bytebucket
     int returnCode = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     if (returnCode != SQLITE_DONE)
-      return std::nullopt;
+    {
+      switch (returnCode)
+      {
+      case SQLITE_CONSTRAINT_FOREIGNKEY:
+        result.error = DatabaseError::ForeignKeyConstraint;
+        result.errorMessage = "Parent folder doesn't exist";
+        break;
+      case SQLITE_CONSTRAINT_NOTNULL:
+        result.error = DatabaseError::NotNullConstraint;
+        result.errorMessage = "File name cannot be empty";
+        break;
+      case SQLITE_CONSTRAINT_UNIQUE:
+        result.error = DatabaseError::UniqueConstraint;
+        result.errorMessage = "A folder with this storage ID already exists in the parent directory";
+        break;
+      case SQLITE_CONSTRAINT:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Constraint violation: " + std::string(sqlite3_errmsg(db.get()));
+        break;
+      default:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Database error: " + std::string(sqlite3_errmsg(db.get()));
+        break;
+      }
+      return result;
+    }
 
-    return static_cast<int>(sqlite3_last_insert_rowid(db.get()));
+    result.value = static_cast<int>(sqlite3_last_insert_rowid(db.get()));
+    result.error = DatabaseError::Success;
+    return result;
   }
 #pragma endregion files
 
 #pragma region folders
-  std::optional<int> Database::insertFolder(std::string_view name, std::optional<int> parentId)
+  DatabaseResult<int> Database::insertFolder(std::string_view name, std::optional<int> parentId)
   {
+    DatabaseResult<int> result;
     const char *sql = R"(
       INSERT INTO folders (name, parent_id) 
       VALUES (?, ?)
@@ -153,7 +187,11 @@ namespace bytebucket
     sqlite3_stmt *stmt = nullptr;
 
     if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
-      return std::nullopt;
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare folder insert statement";
+      return result;
+    }
 
     sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()), SQLITE_STATIC);
     if (parentId.has_value())
@@ -164,9 +202,36 @@ namespace bytebucket
     int returnCode = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     if (returnCode != SQLITE_DONE)
-      return std::nullopt;
+    {
+      switch (returnCode)
+      {
+      case SQLITE_CONSTRAINT_FOREIGNKEY:
+        result.error = DatabaseError::ForeignKeyConstraint;
+        result.errorMessage = "Parent folder doesn't exist";
+        break;
+      case SQLITE_CONSTRAINT_NOTNULL:
+        result.error = DatabaseError::NotNullConstraint;
+        result.errorMessage = "Folder name cannot be empty";
+        break;
+      case SQLITE_CONSTRAINT_UNIQUE:
+        result.error = DatabaseError::UniqueConstraint;
+        result.errorMessage = "A folder with this name already exists in the parent directory";
+        break;
+      case SQLITE_CONSTRAINT:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Constraint violation: " + std::string(sqlite3_errmsg(db.get()));
+        break;
+      default:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Database error: " + std::string(sqlite3_errmsg(db.get()));
+        break;
+      }
+      return result;
+    }
 
-    return static_cast<int>(sqlite3_last_insert_rowid(db.get()));
+    result.value = static_cast<int>(sqlite3_last_insert_rowid(db.get()));
+    result.error = DatabaseError::Success;
+    return result;
   }
 
   std::optional<FolderRecord> Database::getFolderById(int id) const

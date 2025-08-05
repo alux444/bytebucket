@@ -120,14 +120,14 @@ namespace bytebucket
       return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
                                    "Database connection failed");
 
-    auto folder_id = db->insertFolder(folder_name, parent_id);
-    if (!folder_id.has_value())
+    DatabaseResult<int> dbResult = db->insertFolder(folder_name, parent_id);
+    if (!dbResult.success() || !dbResult.value.has_value())
       return create_error_response(boost::beast::http::status::bad_request, req.version(),
-                                   "Failed to create folder");
+                                   dbResult.errorMessage);
 
     // Build response JSON
     std::ostringstream response_json;
-    response_json << R"({"id":)" << folder_id.value()
+    response_json << R"({"id":)" << *dbResult.value
                   << R"(,"name":")" << folder_name << R"(")";
 
     if (parent_id.has_value())
