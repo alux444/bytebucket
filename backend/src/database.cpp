@@ -247,6 +247,7 @@ namespace bytebucket
   }
 
   bool Database::deleteFolder(int id)
+  // TODO: either migrate db for cascades or do recursive delete solution
   {
     const char *deleteSql = R"(
       DELETE FROM folders 

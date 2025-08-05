@@ -29,6 +29,27 @@ namespace bytebucket
     std::optional<int> parentId;
   };
 
+  enum class DatabaseError
+  {
+    Success,
+    ForeignKeyConstraint,
+    NotNullConstraint,
+    UniqueConstraint,
+    PrepareStatementFailed,
+    UnknownError
+  };
+
+  template <typename T>
+  struct DatabaseResult
+  {
+    std::optional<T> value;
+    DatabaseError error = DatabaseError::Success;
+    std::string errorMessage;
+
+    bool success() const { return error == DatabaseError::Success; }
+    explicit operator bool() const { return success(); }
+  };
+
   class Database
   {
   public:
