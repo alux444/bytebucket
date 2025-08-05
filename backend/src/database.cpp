@@ -168,6 +168,83 @@ namespace bytebucket
 
     return static_cast<int>(sqlite3_last_insert_rowid(db.get()));
   }
+
+  std::optional<FolderRecord> Database::getFolderById(int id) const
+  {
+    const char *sql = R"(
+      SELECT id, name, parent_id 
+      FROM folders 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+      return std::nullopt;
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      return std::nullopt;
+    }
+
+    FolderRecord folder;
+    folder.id = sqlite3_column_int(stmt, 0);
+    folder.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+
+    if (sqlite3_column_type(stmt, 2) == SQLITE_NULL)
+      folder.parentId = std::nullopt;
+    else
+      folder.parentId = sqlite3_column_int(stmt, 2);
+
+    sqlite3_finalize(stmt);
+    return folder;
+  }
+
+  std::vector<FolderRecord> Database::getFoldersByParent(std::optional<int> parentId) const
+  {
+    std::vector<FolderRecord> folders;
+    const char *sql = R"(
+      SELECT id, name, parent_id 
+      FROM folders 
+      WHERE parent_id = ? OR (parent_id IS NULL and ? IS NULL)
+      ORDER BY name
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+      return folders;
+
+    if (parentId.has_value())
+    {
+      sqlite3_bind_int(stmt, 1, parentId.value());
+      sqlite3_bind_int(stmt, 2, parentId.value());
+    }
+    else
+    {
+      sqlite3_bind_null(stmt, 1);
+      sqlite3_bind_null(stmt, 2);
+    }
+
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+      FolderRecord folder;
+      folder.id = sqlite3_column_int(stmt, 0);
+      folder.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+
+      if (sqlite3_column_type(stmt, 2) == SQLITE_NULL)
+        folder.parentId = std::nullopt;
+      else
+        folder.parentId = sqlite3_column_int(stmt, 2);
+
+      folders.push_back(std::move(folder));
+    }
+
+    sqlite3_finalize(stmt);
+    return folders;
+  }
 #pragma endregion folders
 
 }
