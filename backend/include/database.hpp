@@ -9,6 +9,7 @@
 
 namespace bytebucket
 {
+  inline std::optional<std::chrono::system_clock::time_point> parseSqliteToChrono(const char *sqlite3Time);
 
   struct FileRecord
   {

@@ -1,8 +1,21 @@
 #include "database.hpp"
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 
 namespace bytebucket
 {
+  inline std::optional<std::chrono::system_clock::time_point> parseSqliteToChrono(const char *sqlite3Time)
+  {
+    if (!sqlite3Time)
+      return std::nullopt;
+    std::tm tm{};
+    std::istringstream ss{sqlite3Time};
+    ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+    if (ss.fail())
+      return std::nullopt;
+    return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+  }
 
   std::shared_ptr<Database> Database::create(const std::string &dbPath)
   {
@@ -211,9 +224,8 @@ namespace bytebucket
     file.id = sqlite3_column_int(stmt, 0);
     file.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
     file.folderId = sqlite3_column_int(stmt, 2);
-    // TODO: timestamp parsing
-    // file.createdAt = parseTimestamp(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-    // file.updatedAt = parseTimestamp(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+    file.createdAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3))).value();
+    file.updatedAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4))).value();
     file.size = sqlite3_column_int(stmt, 5);
     file.contentType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
     file.storageId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7));
@@ -256,9 +268,8 @@ namespace bytebucket
     file.id = sqlite3_column_int(stmt, 0);
     file.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
     file.folderId = sqlite3_column_int(stmt, 2);
-    // TODO: timestamp parsing
-    // file.createdAt = parseTimestamp(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-    // file.updatedAt = parseTimestamp(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+    file.createdAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3))).value();
+    file.updatedAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4))).value();
     file.size = sqlite3_column_int(stmt, 5);
     file.contentType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
     file.storageId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7));
