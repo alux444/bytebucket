@@ -9,12 +9,74 @@ namespace bytebucket
   {
     if (!sqlite3Time)
       return std::nullopt;
+
+    std::string timeString(sqlite3Time);
+    if (timeString.empty())
+      return std::nullopt;
+
+    int FORMAT_LENGTH = 19; // "YYYY-MM-DD HH:MM:SS"
+    if (timeString.length() != FORMAT_LENGTH)
+      return std::nullopt;
+
+    if (timeString[4] != '-' || timeString[7] != '-' || timeString[10] != ' ' ||
+        timeString[13] != ':' || timeString[16] != ':')
+      return std::nullopt;
+
+    for (int i = 0; i < 19; ++i)
+    {
+      if (i == 4 || i == 7 || i == 10 || i == 13 || i == 16)
+        continue; // skip separators
+      if (!std::isdigit(timeString[i]))
+        return std::nullopt;
+    }
+
     std::tm tm{};
     std::istringstream ss{sqlite3Time};
     ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-    if (ss.fail())
+
+    if (ss.fail() || !ss.eof())
       return std::nullopt;
-    return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+
+    bool isValidYear = tm.tm_year >= 0;
+    bool isValidMonth = tm.tm_mon >= 0 && tm.tm_mon <= 11;
+    bool isValidDay = tm.tm_mday >= 1 && tm.tm_mday <= 31;
+    bool isValidHour = tm.tm_hour >= 0 && tm.tm_hour <= 23;
+    bool isValidMinute = tm.tm_min >= 0 && tm.tm_min <= 59;
+    bool isValidSecond = tm.tm_sec >= 0 && tm.tm_sec <= 59;
+
+    if (!isValidYear || !isValidMonth || !isValidDay || !isValidHour || !isValidMinute || !isValidSecond)
+      return std::nullopt;
+
+    if (tm.tm_mon == 1)
+    { // 1 = feb
+      int year = tm.tm_year + 1900;
+      bool isLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+      int maxDays = isLeapYear ? 29 : 28;
+      if (tm.tm_mday > maxDays)
+        return std::nullopt;
+    }
+    else if (tm.tm_mon == 3 || tm.tm_mon == 5 || tm.tm_mon == 8 || tm.tm_mon == 10)
+    { // April, June, September, November
+      if (tm.tm_mday > 30)
+        return std::nullopt;
+    }
+
+    char *originalTimezone = getenv("TZ");
+    setenv("TZ", "UTC", 1);
+    tzset();
+
+    time_t utcTime = mktime(&tm);
+
+    if (originalTimezone)
+      setenv("TZ", originalTimezone, 1);
+    else
+      unsetenv("TZ");
+    tzset();
+
+    if (utcTime == -1)
+      return std::nullopt;
+
+    return std::chrono::system_clock::from_time_t(utcTime);
   }
 
   std::shared_ptr<Database> Database::create(const std::string &dbPath)
