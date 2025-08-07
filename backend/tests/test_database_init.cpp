@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include "test_helpers_database.hpp"
+#include <sstream>
 
 using namespace bytebucket;
 using namespace bytebucket::test;
@@ -115,6 +116,176 @@ TEST_CASE("Database schema creation", "[database][schema]")
     REQUIRE(index_count >= 6);
 
     sqlite3_close(raw_db);
+  }
+}
+
+TEST_CASE("SQLite timestamp parsing", "[database][parsing]")
+{
+  SECTION("Parse valid SQLite timestamp")
+  {
+    const char *valid_timestamp = "2024-08-07 14:30:25";
+    auto result = parseSqliteToChrono(valid_timestamp);
+
+    REQUIRE(result.has_value());
+
+    // Convert back to time_t to verify parsing
+    auto time_t_val = std::chrono::system_clock::to_time_t(result.value());
+    auto tm_ptr = std::gmtime(&time_t_val);
+
+    REQUIRE(tm_ptr->tm_year + 1900 == 2024);
+    REQUIRE(tm_ptr->tm_mon + 1 == 8); // tm_mon is 0-based
+    REQUIRE(tm_ptr->tm_mday == 7);
+    REQUIRE(tm_ptr->tm_hour == 14);
+    REQUIRE(tm_ptr->tm_min == 30);
+    REQUIRE(tm_ptr->tm_sec == 25);
+  }
+
+  SECTION("Parse current timestamp format")
+  {
+    const char *current_format = "2025-01-15 09:45:12";
+    auto result = parseSqliteToChrono(current_format);
+
+    REQUIRE(result.has_value());
+
+    auto time_t_val = std::chrono::system_clock::to_time_t(result.value());
+    auto tm_ptr = std::gmtime(&time_t_val);
+
+    REQUIRE(tm_ptr->tm_year + 1900 == 2025);
+    REQUIRE(tm_ptr->tm_mon + 1 == 1);
+    REQUIRE(tm_ptr->tm_mday == 15);
+    REQUIRE(tm_ptr->tm_hour == 9);
+    REQUIRE(tm_ptr->tm_min == 45);
+    REQUIRE(tm_ptr->tm_sec == 12);
+  }
+
+  SECTION("Parse edge case timestamps")
+  {
+    // New Year's Day
+    const char *new_year = "2024-01-01 00:00:00";
+    auto result = parseSqliteToChrono(new_year);
+    REQUIRE(result.has_value());
+
+    // End of year
+    const char *end_year = "2024-12-31 23:59:59";
+    result = parseSqliteToChrono(end_year);
+    REQUIRE(result.has_value());
+
+    // Leap year February 29th
+    const char *leap_day = "2024-02-29 12:00:00";
+    result = parseSqliteToChrono(leap_day);
+    REQUIRE(result.has_value());
+  }
+
+  SECTION("Handle null pointer")
+  {
+    auto result = parseSqliteToChrono(nullptr);
+    REQUIRE_FALSE(result.has_value());
+  }
+
+  SECTION("Handle invalid timestamp formats")
+  {
+    // Invalid format - missing seconds
+    auto result = parseSqliteToChrono("2024-08-07 14:30");
+    REQUIRE_FALSE(result.has_value());
+
+    // Invalid format - wrong separator
+    result = parseSqliteToChrono("2024/08/07 14:30:25");
+    REQUIRE_FALSE(result.has_value());
+
+    // Invalid format - extra characters
+    result = parseSqliteToChrono("2024-08-07 14:30:25 UTC");
+    REQUIRE_FALSE(result.has_value());
+
+    // Invalid format - missing date
+    result = parseSqliteToChrono("14:30:25");
+    REQUIRE_FALSE(result.has_value());
+
+    // Invalid format - missing time
+    result = parseSqliteToChrono("2024-08-07");
+    REQUIRE_FALSE(result.has_value());
+
+    // Completely invalid
+    result = parseSqliteToChrono("not a timestamp");
+    REQUIRE_FALSE(result.has_value());
+
+    // Empty string
+    result = parseSqliteToChrono("");
+    REQUIRE_FALSE(result.has_value());
+  }
+
+  SECTION("Handle invalid date values")
+  {
+    // Invalid month
+    auto result = parseSqliteToChrono("2024-13-07 14:30:25");
+    REQUIRE_FALSE(result.has_value());
+
+    // Invalid day
+    result = parseSqliteToChrono("2024-08-32 14:30:25");
+    REQUIRE_FALSE(result.has_value());
+
+    // Invalid hour
+    result = parseSqliteToChrono("2024-08-07 25:30:25");
+    REQUIRE_FALSE(result.has_value());
+
+    // Invalid minute
+    result = parseSqliteToChrono("2024-08-07 14:60:25");
+    REQUIRE_FALSE(result.has_value());
+
+    // Invalid second
+    result = parseSqliteToChrono("2024-08-07 14:30:60");
+    REQUIRE_FALSE(result.has_value());
+
+    // February 30th (invalid)
+    result = parseSqliteToChrono("2024-02-30 12:00:00");
+    REQUIRE_FALSE(result.has_value());
+  }
+
+  SECTION("Test round-trip consistency")
+  {
+    const char *original = "2024-08-07 14:30:25";
+    auto parsed = parseSqliteToChrono(original);
+    REQUIRE(parsed.has_value());
+
+    // Convert back to string and verify format
+    auto time_t_val = std::chrono::system_clock::to_time_t(parsed.value());
+    auto tm_ptr = std::gmtime(&time_t_val);
+
+    std::ostringstream oss;
+    oss << std::put_time(tm_ptr, "%Y-%m-%d %H:%M:%S");
+
+    REQUIRE(oss.str() == original);
+  }
+
+  SECTION("Test with actual SQLite CURRENT_TIMESTAMP format")
+  {
+    // SQLite CURRENT_TIMESTAMP format should be parseable
+    TestDatabase test_db("timestamp_test");
+
+    // Insert a file to test timestamp generation
+    auto folder_id = DatabaseTestHelper::createTestFolder(test_db.get(), "TimestampTest");
+    auto file_result = test_db->addFile("test_file.txt", folder_id.value(), 100, "text/plain", "storage_test_timestamp");
+
+    REQUIRE(file_result.success());
+
+    // Retrieve the file and verify timestamps are valid
+    auto retrieved_file = test_db->getFileById(file_result.value.value());
+    REQUIRE(retrieved_file.success());
+
+    // Verify that timestamps are valid (not default constructed)
+    auto file = retrieved_file.value.value();
+
+    // Check that created_at and updated_at are reasonable (within last minute)
+    auto now = std::chrono::system_clock::now();
+    auto minute_ago = now - std::chrono::minutes(1);
+
+    REQUIRE(file.createdAt >= minute_ago);
+    REQUIRE(file.createdAt <= now);
+    REQUIRE(file.updatedAt >= minute_ago);
+    REQUIRE(file.updatedAt <= now);
+
+    // For a new file, created_at and updated_at should be very close
+    auto diff = file.updatedAt - file.createdAt;
+    REQUIRE(diff <= std::chrono::seconds(1));
   }
 }
 

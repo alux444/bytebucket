@@ -1,8 +1,83 @@
 #include "database.hpp"
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 
 namespace bytebucket
 {
+  inline std::optional<std::chrono::system_clock::time_point> parseSqliteToChrono(const char *sqlite3Time)
+  {
+    if (!sqlite3Time)
+      return std::nullopt;
+
+    std::string timeString(sqlite3Time);
+    if (timeString.empty())
+      return std::nullopt;
+
+    int FORMAT_LENGTH = 19; // "YYYY-MM-DD HH:MM:SS"
+    if (timeString.length() != FORMAT_LENGTH)
+      return std::nullopt;
+
+    if (timeString[4] != '-' || timeString[7] != '-' || timeString[10] != ' ' ||
+        timeString[13] != ':' || timeString[16] != ':')
+      return std::nullopt;
+
+    for (int i = 0; i < 19; ++i)
+    {
+      if (i == 4 || i == 7 || i == 10 || i == 13 || i == 16)
+        continue; // skip separators
+      if (!std::isdigit(timeString[i]))
+        return std::nullopt;
+    }
+
+    std::tm tm{};
+    std::istringstream ss{sqlite3Time};
+    ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+
+    if (ss.fail() || !ss.eof())
+      return std::nullopt;
+
+    bool isValidYear = tm.tm_year >= 0;
+    bool isValidMonth = tm.tm_mon >= 0 && tm.tm_mon <= 11;
+    bool isValidDay = tm.tm_mday >= 1 && tm.tm_mday <= 31;
+    bool isValidHour = tm.tm_hour >= 0 && tm.tm_hour <= 23;
+    bool isValidMinute = tm.tm_min >= 0 && tm.tm_min <= 59;
+    bool isValidSecond = tm.tm_sec >= 0 && tm.tm_sec <= 59;
+
+    if (!isValidYear || !isValidMonth || !isValidDay || !isValidHour || !isValidMinute || !isValidSecond)
+      return std::nullopt;
+
+    if (tm.tm_mon == 1)
+    { // 1 = feb
+      int year = tm.tm_year + 1900;
+      bool isLeapYear = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+      int maxDays = isLeapYear ? 29 : 28;
+      if (tm.tm_mday > maxDays)
+        return std::nullopt;
+    }
+    else if (tm.tm_mon == 3 || tm.tm_mon == 5 || tm.tm_mon == 8 || tm.tm_mon == 10)
+    { // April, June, September, November
+      if (tm.tm_mday > 30)
+        return std::nullopt;
+    }
+
+    char *originalTimezone = getenv("TZ");
+    setenv("TZ", "UTC", 1);
+    tzset();
+
+    time_t utcTime = mktime(&tm);
+
+    if (originalTimezone)
+      setenv("TZ", originalTimezone, 1);
+    else
+      unsetenv("TZ");
+    tzset();
+
+    if (utcTime == -1)
+      return std::nullopt;
+
+    return std::chrono::system_clock::from_time_t(utcTime);
+  }
 
   std::shared_ptr<Database> Database::create(const std::string &dbPath)
   {
@@ -178,6 +253,220 @@ namespace bytebucket
     result.error = DatabaseError::Success;
     return result;
   }
+
+  DatabaseResult<FileRecord> Database::getFileById(int id) const
+  {
+    DatabaseResult<FileRecord> result;
+    const char *sql = R"(
+      SELECT id, name, folder_id, created_at, updated_at, size, content_type, storage_id 
+      FROM files 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare folder insert statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "File not found";
+      return result;
+    }
+
+    FileRecord file;
+    file.id = sqlite3_column_int(stmt, 0);
+    file.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+    file.folderId = sqlite3_column_int(stmt, 2);
+    file.createdAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3))).value();
+    file.updatedAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4))).value();
+    file.size = sqlite3_column_int(stmt, 5);
+    file.contentType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
+    file.storageId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7));
+
+    sqlite3_finalize(stmt);
+    result.value = file;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<FileRecord> Database::getFileByStorageId(std::string_view storageId) const
+  {
+    DatabaseResult<FileRecord> result;
+    const char *sql = R"(
+      SELECT id, name, folder_id, created_at, updated_at, size, content_type, storage_id 
+      FROM files 
+      WHERE storage_id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare folder insert statement";
+      return result;
+    }
+
+    sqlite3_bind_text(stmt, 1, storageId.data(), static_cast<int>(storageId.size()), SQLITE_STATIC);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "File not found";
+      return result;
+    }
+
+    FileRecord file;
+    file.id = sqlite3_column_int(stmt, 0);
+    file.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+    file.folderId = sqlite3_column_int(stmt, 2);
+    file.createdAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3))).value();
+    file.updatedAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4))).value();
+    file.size = sqlite3_column_int(stmt, 5);
+    file.contentType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
+    file.storageId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7));
+
+    sqlite3_finalize(stmt);
+    result.value = file;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<std::vector<FileRecord>> Database::getFilesByFolder(int folderId) const
+  {
+    DatabaseResult<std::vector<FileRecord>> result;
+    const char *sql = R"(
+      SELECT id, name, folder_id, created_at, updated_at, size, content_type, storage_id 
+      FROM files 
+      WHERE folder_id = ?
+      ORDER BY name
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare files by folder statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, folderId);
+
+    std::vector<FileRecord> files;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+      FileRecord file;
+      file.id = sqlite3_column_int(stmt, 0);
+      file.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+      file.folderId = sqlite3_column_int(stmt, 2);
+      file.createdAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3))).value();
+      file.updatedAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4))).value();
+      file.size = sqlite3_column_int(stmt, 5);
+      file.contentType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
+      file.storageId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7));
+
+      files.push_back(std::move(file));
+    }
+
+    sqlite3_finalize(stmt);
+    result.value = std::move(files);
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<bool> Database::updateFileTimestamp(int id)
+  {
+    DatabaseResult<bool> result;
+    const char *sql = R"(
+      UPDATE files 
+      SET updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare update file timestamp statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to update file timestamp";
+      return result;
+    }
+
+    int changes = sqlite3_changes(db.get());
+    if (changes == 0)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to update file timestamp";
+      return result;
+    }
+
+    result.value = sqlite3_changes(db.get()) > 0;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<bool> Database::deleteFile(int id)
+  {
+    DatabaseResult<bool> result;
+    const char *sql = R"(
+      DELETE FROM files 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare delete file statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to delete file";
+      return result;
+    }
+
+    int changes = sqlite3_changes(db.get());
+    if (changes == 0)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to delete file";
+      return result;
+    }
+
+    result.value = sqlite3_changes(db.get()) > 0;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
 #pragma endregion files
 
 #pragma region folders
@@ -319,7 +608,6 @@ namespace bytebucket
   }
 
   bool Database::deleteFolder(int id)
-  // TODO: either migrate db for cascades or do recursive delete solution
   {
     const char *deleteSql = R"(
       DELETE FROM folders 

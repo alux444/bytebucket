@@ -7,7 +7,8 @@ CREATE TABLE folders (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     parent_id INTEGER,
-    FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE SET NULL
+    FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE SET CASCADE,
+    UNIQUE (name, parent_id)
 );
 
 -- FILES table
