@@ -345,7 +345,43 @@ namespace bytebucket
   DatabaseResult<std::vector<FileRecord>> Database::getFilesByFolder(int folderId) const
   {
     DatabaseResult<std::vector<FileRecord>> result;
-    // TODO
+    const char *sql = R"(
+      SELECT id, name, folder_id, created_at, updated_at, size, content_type, storage_id 
+      FROM files 
+      WHERE folder_id = ?
+      ORDER BY name
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare files by folder statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, folderId);
+
+    std::vector<FileRecord> files;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+      FileRecord file;
+      file.id = sqlite3_column_int(stmt, 0);
+      file.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+      file.folderId = sqlite3_column_int(stmt, 2);
+      file.createdAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3))).value();
+      file.updatedAt = parseSqliteToChrono(reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4))).value();
+      file.size = sqlite3_column_int(stmt, 5);
+      file.contentType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
+      file.storageId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7));
+
+      files.push_back(std::move(file));
+    }
+
+    sqlite3_finalize(stmt);
+    result.value = std::move(files);
+    result.error = DatabaseError::Success;
+    return result;
   }
 
   DatabaseResult<bool> Database::updateFileTimestamp(int id)
@@ -368,7 +404,16 @@ namespace bytebucket
     sqlite3_bind_int(stmt, 1, id);
 
     int returnCode = sqlite3_step(stmt);
-    if (returnCode != SQLITE_ROW)
+    if (returnCode != SQLITE_DONE)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to update file timestamp";
+      return result;
+    }
+
+    int changes = sqlite3_changes(db.get());
+    if (changes == 0)
     {
       sqlite3_finalize(stmt);
       result.error = DatabaseError::UnknownError;
@@ -400,7 +445,16 @@ namespace bytebucket
     sqlite3_bind_int(stmt, 1, id);
 
     int returnCode = sqlite3_step(stmt);
-    if (returnCode != SQLITE_ROW)
+    if (returnCode != SQLITE_DONE)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to delete file";
+      return result;
+    }
+
+    int changes = sqlite3_changes(db.get());
+    if (changes == 0)
     {
       sqlite3_finalize(stmt);
       result.error = DatabaseError::UnknownError;
