@@ -178,6 +178,168 @@ namespace bytebucket
     result.error = DatabaseError::Success;
     return result;
   }
+
+  DatabaseResult<FileRecord> Database::getFileById(int id) const
+  {
+    DatabaseResult<FileRecord> result;
+    const char *sql = R"(
+      SELECT id, name, folder_id, created_at, updated_at, size, content_type, storage_id 
+      FROM files 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare folder insert statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "File not found";
+      return result;
+    }
+
+    FileRecord file;
+    file.id = sqlite3_column_int(stmt, 0);
+    file.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+    file.folderId = sqlite3_column_int(stmt, 2);
+    // TODO: timestamp parsing
+    // file.createdAt = parseTimestamp(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+    // file.updatedAt = parseTimestamp(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+    file.size = sqlite3_column_int(stmt, 5);
+    file.contentType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
+    file.storageId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7));
+
+    sqlite3_finalize(stmt);
+    result.value = file;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<FileRecord> Database::getFileByStorageId(std::string_view storageId) const
+  {
+    DatabaseResult<FileRecord> result;
+    const char *sql = R"(
+      SELECT id, name, folder_id, created_at, updated_at, size, content_type, storage_id 
+      FROM files 
+      WHERE storage_id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare folder insert statement";
+      return result;
+    }
+
+    sqlite3_bind_text(stmt, 1, storageId.data(), static_cast<int>(storageId.size()), SQLITE_STATIC);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "File not found";
+      return result;
+    }
+
+    FileRecord file;
+    file.id = sqlite3_column_int(stmt, 0);
+    file.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+    file.folderId = sqlite3_column_int(stmt, 2);
+    // TODO: timestamp parsing
+    // file.createdAt = parseTimestamp(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+    // file.updatedAt = parseTimestamp(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+    file.size = sqlite3_column_int(stmt, 5);
+    file.contentType = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 6));
+    file.storageId = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 7));
+
+    sqlite3_finalize(stmt);
+    result.value = file;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<std::vector<FileRecord>> Database::getFilesByFolder(int folderId) const
+  {
+    DatabaseResult<std::vector<FileRecord>> result;
+    // TODO
+  }
+
+  DatabaseResult<bool> Database::updateFileTimestamp(int id)
+  {
+    DatabaseResult<bool> result;
+    const char *sql = R"(
+      UPDATE files 
+      SET updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare update file timestamp statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to update file timestamp";
+      return result;
+    }
+
+    result.value = sqlite3_changes(db.get()) > 0;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<bool> Database::deleteFile(int id)
+  {
+    DatabaseResult<bool> result;
+    const char *sql = R"(
+      DELETE FROM files 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare delete file statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to delete file";
+      return result;
+    }
+
+    result.value = sqlite3_changes(db.get()) > 0;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
 #pragma endregion files
 
 #pragma region folders
@@ -319,7 +481,6 @@ namespace bytebucket
   }
 
   bool Database::deleteFolder(int id)
-  // TODO: either migrate db for cascades or do recursive delete solution
   {
     const char *deleteSql = R"(
       DELETE FROM folders 

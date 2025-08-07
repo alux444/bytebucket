@@ -69,11 +69,11 @@ namespace bytebucket
         int size,
         std::string_view contentType,
         std::string_view storageId);
-    std::optional<FileRecord> getFileById(int id) const;
-    std::optional<FileRecord> getFileByStorageId(std::string_view storageId) const;
-    std::vector<FileRecord> getFilesByFolder(int folderId) const;
-    bool updateFileTimestamp(int id);
-    bool deleteFile(int id);
+    DatabaseResult<FileRecord> getFileById(int id) const;
+    DatabaseResult<FileRecord> getFileByStorageId(std::string_view storageId) const;
+    DatabaseResult<std::vector<FileRecord>> getFilesByFolder(int folderId) const;
+    DatabaseResult<bool> updateFileTimestamp(int id);
+    DatabaseResult<bool> deleteFile(int id);
 
     // folders
     DatabaseResult<int> insertFolder(std::string_view name, std::optional<int> parentId = std::nullopt);
