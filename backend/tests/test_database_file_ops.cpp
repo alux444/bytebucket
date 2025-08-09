@@ -678,16 +678,16 @@ TEST_CASE("Database file operations integration with folders", "[database][files
     REQUIRE(test_db->getFileById(child_file.value.value()).success());
 
     // Delete parent folder - should cascade delete child folder and both files
-    bool folder_deleted = test_db->deleteFolder(parent_id);
-    REQUIRE(folder_deleted);
+    DatabaseResult<bool> folder_deleted = test_db->deleteFolder(parent_id);
+    REQUIRE(folder_deleted.value);
 
     // Verify files are gone (CASCADE DELETE)
     REQUIRE_FALSE(test_db->getFileById(parent_file.value.value()).success());
     REQUIRE_FALSE(test_db->getFileById(child_file.value.value()).success());
 
     // Verify folders are gone
-    REQUIRE_FALSE(test_db->getFolderById(parent_id).has_value());
-    REQUIRE_FALSE(test_db->getFolderById(child_id).has_value());
+    REQUIRE_FALSE(test_db->getFolderById(parent_id).success());
+    REQUIRE_FALSE(test_db->getFolderById(child_id).success());
   }
 
   SECTION("Files in different folders are independent")
@@ -709,8 +709,8 @@ TEST_CASE("Database file operations integration with folders", "[database][files
     REQUIRE(file2.success());
 
     // Delete one folder
-    bool deleted = test_db->deleteFolder(folder1_id);
-    REQUIRE(deleted);
+    DatabaseResult<bool> deleted = test_db->deleteFolder(folder1_id);
+    REQUIRE(deleted.value);
 
     // File in deleted folder should be gone
     REQUIRE_FALSE(test_db->getFileById(file1.value.value()).success());
@@ -719,7 +719,8 @@ TEST_CASE("Database file operations integration with folders", "[database][files
     REQUIRE(test_db->getFileById(file2.value.value()).success());
 
     // Remaining folder should still exist
-    REQUIRE(test_db->getFolderById(folder2_id).has_value());
+    REQUIRE(test_db->getFolderById(folder2_id).success());
+    REQUIRE(test_db->getFolderById(folder2_id).value);
   }
 
   SECTION("Cannot add file to non-existent folder")

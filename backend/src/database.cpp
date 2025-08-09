@@ -530,8 +530,9 @@ namespace bytebucket
     return result;
   }
 
-  std::optional<FolderRecord> Database::getFolderById(int id) const
+  DatabaseResult<FolderRecord> Database::getFolderById(int id) const
   {
+    DatabaseResult<FolderRecord> result;
     const char *sql = R"(
       SELECT id, name, parent_id 
       FROM folders 
@@ -540,7 +541,11 @@ namespace bytebucket
     sqlite3_stmt *stmt = nullptr;
 
     if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
-      return std::nullopt;
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare fetch folder statement";
+      return result;
+    }
 
     sqlite3_bind_int(stmt, 1, id);
 
@@ -548,7 +553,9 @@ namespace bytebucket
     if (returnCode != SQLITE_ROW)
     {
       sqlite3_finalize(stmt);
-      return std::nullopt;
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Folder not found";
+      return result;
     }
 
     FolderRecord folder;
@@ -561,11 +568,14 @@ namespace bytebucket
       folder.parentId = sqlite3_column_int(stmt, 2);
 
     sqlite3_finalize(stmt);
-    return folder;
+    result.value = folder;
+    result.error = DatabaseError::Success;
+    return result;
   }
 
-  std::vector<FolderRecord> Database::getFoldersByParent(std::optional<int> parentId) const
+  DatabaseResult<std::vector<FolderRecord>> Database::getFoldersByParent(std::optional<int> parentId) const
   {
+    DatabaseResult<std::vector<FolderRecord>> result;
     std::vector<FolderRecord> folders;
     const char *sql = R"(
       SELECT id, name, parent_id 
@@ -576,7 +586,11 @@ namespace bytebucket
     sqlite3_stmt *stmt = nullptr;
 
     if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
-      return folders;
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare fetch folders statement";
+      return result;
+    }
 
     if (parentId.has_value())
     {
@@ -604,11 +618,14 @@ namespace bytebucket
     }
 
     sqlite3_finalize(stmt);
-    return folders;
+    result.value = folders;
+    result.error = DatabaseError::Success;
+    return result;
   }
 
-  bool Database::deleteFolder(int id)
+  DatabaseResult<bool> Database::deleteFolder(int id)
   {
+    DatabaseResult<bool> result;
     const char *deleteSql = R"(
       DELETE FROM folders 
       WHERE id = ?
@@ -616,14 +633,35 @@ namespace bytebucket
     sqlite3_stmt *deleteStmt = nullptr;
 
     if (sqlite3_prepare_v3(db.get(), deleteSql, -1, SQLITE_PREPARE_PERSISTENT, &deleteStmt, nullptr) != SQLITE_OK)
-      return false;
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare fetch folders statement";
+      return result;
+    }
 
     sqlite3_bind_int(deleteStmt, 1, id);
 
     int returnCode = sqlite3_step(deleteStmt);
     sqlite3_finalize(deleteStmt);
 
-    return returnCode == SQLITE_DONE && sqlite3_changes(db.get()) > 0;
+    if (returnCode != SQLITE_DONE)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to execute delete folder query";
+      return result;
+    }
+
+    if (sqlite3_changes(db.get()) == 0)
+    {
+      result.value = false;
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "DELETE action resulted in no changes";
+      return result;
+    }
+
+    result.value = true;
+    result.error = DatabaseError::Success;
+    return result;
   }
 #pragma endregion folders
 

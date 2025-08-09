@@ -172,8 +172,9 @@ TEST_CASE("Database folder operations edge cases", "[database][folders][edge]")
     }
 
     // Verify all can be retrieved
-    auto root_folders = test_db->getFoldersByParent(std::nullopt);
-    REQUIRE(root_folders.size() == 100);
+    auto root_folders_result = test_db->getFoldersByParent(std::nullopt);
+    REQUIRE(root_folders_result.success());
+    REQUIRE(root_folders_result.value.value().size() == 100);
   }
 
   SECTION("Insert deeply nested folder structure")
@@ -191,7 +192,9 @@ TEST_CASE("Database folder operations edge cases", "[database][folders][edge]")
     }
 
     // Should have exactly 1 root folder
-    auto root_folders = test_db->getFoldersByParent(std::nullopt);
+    auto root_folders_result = test_db->getFoldersByParent(std::nullopt);
+    REQUIRE(root_folders_result.success());
+    auto root_folders = root_folders_result.value.value();
     REQUIRE(root_folders.size() == 1);
     REQUIRE(root_folders[0].name == "level_0");
   }
@@ -209,19 +212,22 @@ TEST_CASE("Database folder operations edge cases", "[database][folders][edge]")
     }
 
     // Verify all exist
-    auto root_folders = test_db->getFoldersByParent(std::nullopt);
-    REQUIRE(root_folders.size() == 1000);
+    auto root_folders_result = test_db->getFoldersByParent(std::nullopt);
+    REQUIRE(root_folders_result.success());
+    REQUIRE(root_folders_result.value.value().size() == 1000);
 
     // Delete every other folder
     for (size_t i = 0; i < folder_ids.size(); i += 2)
     {
-      bool deleted = test_db->deleteFolder(folder_ids[i]);
-      REQUIRE(deleted);
+      auto delete_result = test_db->deleteFolder(folder_ids[i]);
+      REQUIRE(delete_result.success());
+      REQUIRE(delete_result.value.value() == true);
     }
 
     // Should have 500 folders remaining
-    auto remaining_folders = test_db->getFoldersByParent(std::nullopt);
-    REQUIRE(remaining_folders.size() == 500);
+    auto remaining_folders_result = test_db->getFoldersByParent(std::nullopt);
+    REQUIRE(remaining_folders_result.success());
+    REQUIRE(remaining_folders_result.value.value().size() == 500);
   }
 
   SECTION("Test specific error types")
@@ -298,20 +304,34 @@ TEST_CASE("Database folder operations - Delete with Cascade", "[database][folder
     REQUIRE(file6.has_value());
 
     // Verify initial state - all folders and files exist
-    REQUIRE(test_db->getFolderById(root_id.value()).has_value());
-    REQUIRE(test_db->getFolderById(level1_folder1_id).has_value());
-    REQUIRE(test_db->getFolderById(level1_folder2_id).has_value());
-    REQUIRE(test_db->getFolderById(level2_folder1_id).has_value());
-    REQUIRE(test_db->getFolderById(level2_folder2_id).has_value());
-    REQUIRE(test_db->getFolderById(level2_folder3_id).has_value());
+    auto root_folder_result = test_db->getFolderById(root_id.value());
+    auto level1_folder1_get = test_db->getFolderById(level1_folder1_id);
+    auto level1_folder2_get = test_db->getFolderById(level1_folder2_id);
+    auto level2_folder1_get = test_db->getFolderById(level2_folder1_id);
+    auto level2_folder2_get = test_db->getFolderById(level2_folder2_id);
+    auto level2_folder3_get = test_db->getFolderById(level2_folder3_id);
 
-    // TODO: uncomment on adding getFileById
-    // REQUIRE(test_db->getFileById(file1.value()).has_value());
-    // REQUIRE(test_db->getFileById(file2.value()).has_value());
-    // REQUIRE(test_db->getFileById(file3.value()).has_value());
-    // REQUIRE(test_db->getFileById(file4.value()).has_value());
-    // REQUIRE(test_db->getFileById(file5.value()).has_value());
-    // REQUIRE(test_db->getFileById(file6.value()).has_value());
+    REQUIRE(root_folder_result.success());
+    REQUIRE(level1_folder1_get.success());
+    REQUIRE(level1_folder2_get.success());
+    REQUIRE(level2_folder1_get.success());
+    REQUIRE(level2_folder2_get.success());
+    REQUIRE(level2_folder3_get.success());
+
+    // Verify files exist
+    auto file1_get = test_db->getFileById(file1.value());
+    auto file2_get = test_db->getFileById(file2.value());
+    auto file3_get = test_db->getFileById(file3.value());
+    auto file4_get = test_db->getFileById(file4.value());
+    auto file5_get = test_db->getFileById(file5.value());
+    auto file6_get = test_db->getFileById(file6.value());
+
+    REQUIRE(file1_get.success());
+    REQUIRE(file2_get.success());
+    REQUIRE(file3_get.success());
+    REQUIRE(file4_get.success());
+    REQUIRE(file5_get.success());
+    REQUIRE(file6_get.success());
 
     // Count total folders and files before deletion
     auto all_root_folders_before = test_db->getFoldersByParent(std::nullopt);
@@ -319,39 +339,47 @@ TEST_CASE("Database folder operations - Delete with Cascade", "[database][folder
     auto level2_folder1_children_before = test_db->getFoldersByParent(level1_folder1_id);
     auto level2_folder2_children_before = test_db->getFoldersByParent(level1_folder2_id);
 
-    REQUIRE(all_root_folders_before.size() == 1);        // Only our root folder
-    REQUIRE(level1_children_before.size() == 2);         // Level1_Folder1 and Level1_Folder2
-    REQUIRE(level2_folder1_children_before.size() == 2); // Level2_Folder1 and Level2_Folder2
-    REQUIRE(level2_folder2_children_before.size() == 1); // Level2_Folder3
+    REQUIRE(all_root_folders_before.success());
+    REQUIRE(level1_children_before.success());
+    REQUIRE(level2_folder1_children_before.success());
+    REQUIRE(level2_folder2_children_before.success());
+
+    REQUIRE(all_root_folders_before.value.value().size() == 1);        // Only our root folder
+    REQUIRE(level1_children_before.value.value().size() == 2);         // Level1_Folder1 and Level1_Folder2
+    REQUIRE(level2_folder1_children_before.value.value().size() == 2); // Level2_Folder1 and Level2_Folder2
+    REQUIRE(level2_folder2_children_before.value.value().size() == 1); // Level2_Folder3
 
     // DELETE THE ROOT FOLDER - this should cascade delete everything
-    bool deleted = test_db->deleteFolder(root_id.value());
-    REQUIRE(deleted);
+    auto delete_result = test_db->deleteFolder(root_id.value());
+    REQUIRE(delete_result.success());
+    REQUIRE(delete_result.value.value() == true);
 
     // Verify CASCADE DELETE behavior:
     // All subfolders should be deleted (CASCADE)
-    REQUIRE_FALSE(test_db->getFolderById(root_id.value()).has_value());
-    REQUIRE_FALSE(test_db->getFolderById(level1_folder1_id).has_value());
-    REQUIRE_FALSE(test_db->getFolderById(level1_folder2_id).has_value());
-    REQUIRE_FALSE(test_db->getFolderById(level2_folder1_id).has_value());
-    REQUIRE_FALSE(test_db->getFolderById(level2_folder2_id).has_value());
-    REQUIRE_FALSE(test_db->getFolderById(level2_folder3_id).has_value());
+    REQUIRE_FALSE(test_db->getFolderById(root_id.value()).success());
+    REQUIRE_FALSE(test_db->getFolderById(level1_folder1_id).success());
+    REQUIRE_FALSE(test_db->getFolderById(level1_folder2_id).success());
+    REQUIRE_FALSE(test_db->getFolderById(level2_folder1_id).success());
+    REQUIRE_FALSE(test_db->getFolderById(level2_folder2_id).success());
+    REQUIRE_FALSE(test_db->getFolderById(level2_folder3_id).success());
 
     // All files should be deleted (CASCADE from folder deletion)
-    // REQUIRE_FALSE(test_db->getFileById(file1.value()).has_value());
-    // REQUIRE_FALSE(test_db->getFileById(file2.value()).has_value());
-    // REQUIRE_FALSE(test_db->getFileById(file3.value()).has_value());
-    // REQUIRE_FALSE(test_db->getFileById(file4.value()).has_value());
-    // REQUIRE_FALSE(test_db->getFileById(file5.value()).has_value());
-    // REQUIRE_FALSE(test_db->getFileById(file6.value()).has_value());
+    REQUIRE_FALSE(test_db->getFileById(file1.value()).success());
+    REQUIRE_FALSE(test_db->getFileById(file2.value()).success());
+    REQUIRE_FALSE(test_db->getFileById(file3.value()).success());
+    REQUIRE_FALSE(test_db->getFileById(file4.value()).success());
+    REQUIRE_FALSE(test_db->getFileById(file5.value()).success());
+    REQUIRE_FALSE(test_db->getFileById(file6.value()).success());
 
     // No folders should remain
     auto all_root_folders_after = test_db->getFoldersByParent(std::nullopt);
-    REQUIRE(all_root_folders_after.empty());
+    REQUIRE(all_root_folders_after.success());
+    REQUIRE(all_root_folders_after.value.value().empty());
 
     // No child folders should remain
     auto level1_children_after = test_db->getFoldersByParent(root_id.value());
-    REQUIRE(level1_children_after.empty());
+    REQUIRE(level1_children_after.success());
+    REQUIRE(level1_children_after.value.value().empty());
   }
 
   SECTION("Delete deep nested folder structure")
@@ -393,28 +421,33 @@ TEST_CASE("Database folder operations - Delete with Cascade", "[database][folder
     // Verify all folders and files exist
     for (int folder_id : folder_ids)
     {
-      REQUIRE(test_db->getFolderById(folder_id).has_value());
+      auto folder_result = test_db->getFolderById(folder_id);
+      REQUIRE(folder_result.success());
     }
 
     // Delete the root folder - should cascade delete all 10 folders and 10 files
-    bool deleted = test_db->deleteFolder(folder_ids[0]);
-    REQUIRE(deleted);
+    auto delete_result = test_db->deleteFolder(folder_ids[0]);
+    REQUIRE(delete_result.success());
+    REQUIRE(delete_result.value.value() == true);
 
     // Verify all folders are gone
     for (int folder_id : folder_ids)
     {
-      REQUIRE_FALSE(test_db->getFolderById(folder_id).has_value());
+      auto folder_result = test_db->getFolderById(folder_id);
+      REQUIRE_FALSE(folder_result.success());
     }
 
-    // Verify all files are gone (if you implement getFileById)
-    // for (int file_id : file_ids)
-    // {
-    //   REQUIRE_FALSE(test_db->getFileById(file_id).has_value());
-    // }
+    // Verify all files are gone
+    for (int file_id : file_ids)
+    {
+      auto file_result = test_db->getFileById(file_id);
+      REQUIRE_FALSE(file_result.success());
+    }
 
     // No root folders should remain
-    auto remaining_folders = test_db->getFoldersByParent(std::nullopt);
-    REQUIRE(remaining_folders.empty());
+    auto remaining_folders_result = test_db->getFoldersByParent(std::nullopt);
+    REQUIRE(remaining_folders_result.success());
+    REQUIRE(remaining_folders_result.value.value().empty());
   }
 
   SECTION("Delete folder with files but no subfolders")
@@ -436,20 +469,24 @@ TEST_CASE("Database folder operations - Delete with Cascade", "[database][folder
     }
 
     // Verify folder and files exist
-    REQUIRE(test_db->getFolderById(folder_id).has_value());
+    auto folder_get = test_db->getFolderById(folder_id);
+    REQUIRE(folder_get.success());
 
     // Delete the folder
-    bool deleted = test_db->deleteFolder(folder_id);
-    REQUIRE(deleted);
+    auto delete_result = test_db->deleteFolder(folder_id);
+    REQUIRE(delete_result.success());
+    REQUIRE(delete_result.value.value() == true);
 
     // Verify folder is gone
-    REQUIRE_FALSE(test_db->getFolderById(folder_id).has_value());
+    auto folder_get_after = test_db->getFolderById(folder_id);
+    REQUIRE_FALSE(folder_get_after.success());
 
     // Verify all files are gone (CASCADE DELETE)
-    // for (int file_id : file_ids)
-    // {
-    //   REQUIRE_FALSE(test_db->getFileById(file_id).has_value());
-    // }
+    for (int file_id : file_ids)
+    {
+      auto file_result = test_db->getFileById(file_id);
+      REQUIRE_FALSE(file_result.success());
+    }
   }
 
   SECTION("Delete empty folder")
@@ -459,14 +496,17 @@ TEST_CASE("Database folder operations - Delete with Cascade", "[database][folder
     auto folder_id = folder_result.value.value();
 
     // Verify folder exists
-    REQUIRE(test_db->getFolderById(folder_id).has_value());
+    auto folder_get = test_db->getFolderById(folder_id);
+    REQUIRE(folder_get.success());
 
     // Delete the empty folder
-    bool deleted = test_db->deleteFolder(folder_id);
-    REQUIRE(deleted);
+    auto delete_result = test_db->deleteFolder(folder_id);
+    REQUIRE(delete_result.success());
+    REQUIRE(delete_result.value.value() == true);
 
     // Verify folder is gone
-    REQUIRE_FALSE(test_db->getFolderById(folder_id).has_value());
+    auto folder_get_after = test_db->getFolderById(folder_id);
+    REQUIRE_FALSE(folder_get_after.success());
   }
 
   SECTION("Partial cascade - delete subfolder, parent remains")
@@ -488,18 +528,30 @@ TEST_CASE("Database folder operations - Delete with Cascade", "[database][folder
     REQUIRE(child_file.has_value());
 
     // Delete only the child folder
-    bool deleted = test_db->deleteFolder(child_id);
-    REQUIRE(deleted);
+    auto delete_result = test_db->deleteFolder(child_id);
+    REQUIRE(delete_result.success());
+    REQUIRE(delete_result.value.value() == true);
 
     // Parent should still exist
-    REQUIRE(test_db->getFolderById(parent_id).has_value());
+    auto parent_get = test_db->getFolderById(parent_id);
+    REQUIRE(parent_get.success());
+
     // Child should be gone
-    REQUIRE_FALSE(test_db->getFolderById(child_id).has_value());
+    auto child_get = test_db->getFolderById(child_id);
+    REQUIRE_FALSE(child_get.success());
 
     // Parent file should still exist, child file should be gone
-    // REQUIRE(test_db->getFileById(parent_file.value()).has_value());
-    // REQUIRE_FALSE(test_db->getFileById(child_file.value()).has_value());
+    auto parent_file_get = test_db->getFileById(parent_file.value());
+    auto child_file_get = test_db->getFileById(child_file.value());
+    REQUIRE(parent_file_get.success());
+    REQUIRE_FALSE(child_file_get.success());
+  }
+
+  SECTION("Delete non-existent folder")
+  {
+    auto delete_result = test_db->deleteFolder(99999);
+    REQUIRE_FALSE(delete_result.success());
+    REQUIRE(delete_result.error == DatabaseError::UnknownError);
+    REQUIRE(delete_result.errorMessage == "DELETE action resulted in no changes");
   }
 }
-
-// ... rest of existing tests ...

@@ -78,9 +78,9 @@ namespace bytebucket
 
     // folders
     DatabaseResult<int> insertFolder(std::string_view name, std::optional<int> parentId = std::nullopt);
-    std::optional<FolderRecord> getFolderById(int id) const;
-    std::vector<FolderRecord> getFoldersByParent(std::optional<int> parentId) const;
-    bool deleteFolder(int id);
+    DatabaseResult<FolderRecord> getFolderById(int id) const;
+    DatabaseResult<std::vector<FolderRecord>> getFoldersByParent(std::optional<int> parentId) const;
+    DatabaseResult<bool> deleteFolder(int id);
 
     // tags
     DatabaseResult<int> insertTag(std::string_view name);
