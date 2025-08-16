@@ -665,4 +665,12 @@ namespace bytebucket
   }
 #pragma endregion folders
 
+#pragma region tags
+
+#pragma endregion tags
+
+#pragma region metadata
+
+#pragma endregion metadata
+
 }
