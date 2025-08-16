@@ -669,6 +669,15 @@ namespace bytebucket
   DatabaseResult<int> Database::insertTag(std::string_view name)
   {
     DatabaseResult<int> result;
+
+    // Check for empty tag name
+    if (name.empty())
+    {
+      result.error = DatabaseError::NotNullConstraint;
+      result.errorMessage = "Tag name cannot be empty";
+      return result;
+    }
+
     const char *sql = R"(
       INSERT INTO tags (name) 
       VALUES (?)
@@ -721,6 +730,15 @@ namespace bytebucket
   DatabaseResult<int> Database::getTagByName(std::string_view name) const
   {
     DatabaseResult<int> result;
+
+    // Check for empty tag name
+    if (name.empty())
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Tag name cannot be empty";
+      return result;
+    }
+
     const char *sql = R"(
       SELECT id 
       FROM tags 
