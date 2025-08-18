@@ -665,4 +665,390 @@ namespace bytebucket
   }
 #pragma endregion folders
 
+#pragma region tags
+  DatabaseResult<int> Database::insertTag(std::string_view name)
+  {
+    DatabaseResult<int> result;
+
+    if (name.empty())
+    {
+      result.error = DatabaseError::NotNullConstraint;
+      result.errorMessage = "Tag name cannot be empty";
+      return result;
+    }
+
+    const char *sql = R"(
+      INSERT INTO tags (name) 
+      VALUES (?)
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare tag insert statement";
+      return result;
+    }
+
+    sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()), SQLITE_STATIC);
+
+    int returnCode = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      int extendedErrorCode = sqlite3_extended_errcode(db.get());
+      std::string errorMsg = sqlite3_errmsg(db.get());
+
+      switch (extendedErrorCode)
+      {
+      case SQLITE_CONSTRAINT_NOTNULL:
+        result.error = DatabaseError::NotNullConstraint;
+        result.errorMessage = "Tag name cannot be empty";
+        break;
+      case SQLITE_CONSTRAINT_UNIQUE:
+        result.error = DatabaseError::UniqueConstraint;
+        result.errorMessage = "A tag with this name already exists";
+        break;
+      case SQLITE_CONSTRAINT:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Constraint violation: " + errorMsg;
+        break;
+      default:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Database error: " + errorMsg;
+        break;
+      }
+      return result;
+    }
+
+    result.value = static_cast<int>(sqlite3_last_insert_rowid(db.get()));
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<int> Database::getTagByName(std::string_view name) const
+  {
+    DatabaseResult<int> result;
+
+    if (name.empty())
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Tag name cannot be empty";
+      return result;
+    }
+
+    const char *sql = R"(
+      SELECT id 
+      FROM tags 
+      WHERE name = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare get tag by name statement";
+      return result;
+    }
+
+    sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()), SQLITE_STATIC);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Tag not found";
+      return result;
+    }
+
+    result.value = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<bool> Database::addFileTag(int fileId, int tagId)
+  {
+    DatabaseResult<bool> result;
+    const char *sql = R"(
+      INSERT INTO file_tags (file_id, tag_id) 
+      VALUES (?, ?)
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare add file tag statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, fileId);
+    sqlite3_bind_int(stmt, 2, tagId);
+
+    int returnCode = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      int extendedErrorCode = sqlite3_extended_errcode(db.get());
+      std::string errorMsg = sqlite3_errmsg(db.get());
+
+      switch (extendedErrorCode)
+      {
+      case SQLITE_CONSTRAINT_FOREIGNKEY:
+        result.error = DatabaseError::ForeignKeyConstraint;
+        result.errorMessage = "File or tag doesn't exist";
+        break;
+      case SQLITE_CONSTRAINT_UNIQUE:
+      case SQLITE_CONSTRAINT_PRIMARYKEY:
+        result.error = DatabaseError::UniqueConstraint;
+        result.errorMessage = "File already has this tag";
+        break;
+      case SQLITE_CONSTRAINT:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Constraint violation: " + errorMsg;
+        break;
+      default:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Database error: " + errorMsg;
+        break;
+      }
+      return result;
+    }
+
+    result.value = true;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<bool> Database::removeFileTag(int fileId, int tagId)
+  {
+    DatabaseResult<bool> result;
+    const char *sql = R"(
+      DELETE FROM file_tags 
+      WHERE file_id = ? AND tag_id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare remove file tag statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, fileId);
+    sqlite3_bind_int(stmt, 2, tagId);
+
+    int returnCode = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to remove file tag";
+      return result;
+    }
+
+    int changes = sqlite3_changes(db.get());
+    if (changes == 0)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "File tag association not found";
+      return result;
+    }
+
+    result.value = true;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<std::vector<std::string>> Database::getFileTags(int fileId) const
+  {
+    DatabaseResult<std::vector<std::string>> result;
+    const char *sql = R"(
+      SELECT t.name 
+      FROM tags t
+      INNER JOIN file_tags ft ON t.id = ft.tag_id
+      WHERE ft.file_id = ?
+      ORDER BY t.name
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare get file tags statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, fileId);
+
+    std::vector<std::string> tags;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+      const char *tagName = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+      if (tagName)
+      {
+        tags.emplace_back(tagName);
+      }
+    }
+
+    sqlite3_finalize(stmt);
+    result.value = std::move(tags);
+    result.error = DatabaseError::Success;
+    return result;
+  }
+#pragma endregion tags
+
+#pragma region metadata
+  DatabaseResult<bool> Database::setFileMetadata(int fileId, std::string_view key, std::string_view value)
+  {
+    DatabaseResult<bool> result;
+
+    if (key.empty())
+    {
+      result.error = DatabaseError::NotNullConstraint;
+      result.errorMessage = "Metadata key cannot be empty";
+      return result;
+    }
+
+    const char *sql = R"(
+      INSERT OR REPLACE INTO file_metadata (file_id, key, value) 
+      VALUES (?, ?, ?)
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare set file metadata statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, fileId);
+    sqlite3_bind_text(stmt, 2, key.data(), static_cast<int>(key.size()), SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, value.data(), static_cast<int>(value.size()), SQLITE_STATIC);
+
+    int returnCode = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      int extendedErrorCode = sqlite3_extended_errcode(db.get());
+      std::string errorMsg = sqlite3_errmsg(db.get());
+
+      switch (extendedErrorCode)
+      {
+      case SQLITE_CONSTRAINT_FOREIGNKEY:
+        result.error = DatabaseError::ForeignKeyConstraint;
+        result.errorMessage = "File doesn't exist";
+        break;
+      case SQLITE_CONSTRAINT_NOTNULL:
+        result.error = DatabaseError::NotNullConstraint;
+        result.errorMessage = "Metadata key cannot be empty";
+        break;
+      case SQLITE_CONSTRAINT:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Constraint violation: " + errorMsg;
+        break;
+      default:
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Database error: " + errorMsg;
+        break;
+      }
+      return result;
+    }
+
+    result.value = true;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<std::string> Database::getFileMetadata(int fileId, std::string_view key) const
+  {
+    DatabaseResult<std::string> result;
+
+    if (key.empty())
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Metadata key cannot be empty";
+      return result;
+    }
+
+    const char *sql = R"(
+      SELECT value 
+      FROM file_metadata 
+      WHERE file_id = ? AND key = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare get file metadata statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, fileId);
+    sqlite3_bind_text(stmt, 2, key.data(), static_cast<int>(key.size()), SQLITE_STATIC);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Metadata not found";
+      return result;
+    }
+
+    const char *valueText = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+    if (valueText)
+      result.value = std::string(valueText);
+    else
+      result.value = std::string(); // Empty string for NULL values
+
+    sqlite3_finalize(stmt);
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<std::vector<std::pair<std::string, std::string>>> Database::getAllFileMetadata(int fileId) const
+  {
+    DatabaseResult<std::vector<std::pair<std::string, std::string>>> result;
+    const char *sql = R"(
+      SELECT key, value 
+      FROM file_metadata 
+      WHERE file_id = ?
+      ORDER BY key
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare get all file metadata statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, fileId);
+
+    std::vector<std::pair<std::string, std::string>> metadata;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+      const char *keyText = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+      const char *valueText = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+
+      std::string key = keyText ? std::string(keyText) : std::string();
+      std::string value = valueText ? std::string(valueText) : std::string();
+
+      metadata.emplace_back(std::move(key), std::move(value));
+    }
+
+    sqlite3_finalize(stmt);
+    result.value = std::move(metadata);
+    result.error = DatabaseError::Success;
+    return result;
+  }
+#pragma endregion metadata
+
 }

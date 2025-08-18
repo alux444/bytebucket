@@ -84,15 +84,15 @@ namespace bytebucket
 
     // tags
     DatabaseResult<int> insertTag(std::string_view name);
-    std::optional<int> getTagByName(std::string_view name) const;
-    bool addFileTag(int fileId, int tagId);
-    bool removeFileTag(int fileId, int tagId);
-    std::vector<std::string> getFileTags(int fileId) const;
+    DatabaseResult<int> getTagByName(std::string_view name) const;
+    DatabaseResult<bool> addFileTag(int fileId, int tagId);
+    DatabaseResult<bool> removeFileTag(int fileId, int tagId);
+    DatabaseResult<std::vector<std::string>> getFileTags(int fileId) const;
 
     // metadata
-    bool setFileMetadata(int fileId, std::string_view key, std::string_view value);
-    std::optional<std::string> getFileMetadata(int fileId, std::string_view key) const;
-    std::vector<std::pair<std::string, std::string>> getAllFileMetadata(std::string_view fileId) const;
+    DatabaseResult<bool> setFileMetadata(int fileId, std::string_view key, std::string_view value);
+    DatabaseResult<std::string> getFileMetadata(int fileId, std::string_view key) const;
+    DatabaseResult<std::vector<std::pair<std::string, std::string>>> getAllFileMetadata(int fileId) const;
 
   private:
     explicit Database(sqlite3 *db);
