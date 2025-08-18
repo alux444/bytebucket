@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       // Proxy API requests to the C++ backend
+      // TODO: update to use env
       '/upload': {
         target: 'http://localhost:8080',
         changeOrigin: true,
