@@ -28,6 +28,9 @@ namespace bytebucket
     // Check if file exists
     static bool fileExists(const std::string &file_id);
 
+    // Read file content by ID
+    static std::optional<std::vector<char>> readFile(const std::string &file_id);
+
     // Generate unique file ID
     static std::string generateFileId();
 

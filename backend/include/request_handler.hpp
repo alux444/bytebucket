@@ -6,7 +6,8 @@
 
 namespace bytebucket
 {
-  void addCorsHeaders(boost::beast::http::response<boost::beast::http::string_body> &res);
+  template <typename T>
+  void addCorsHeaders(boost::beast::http::response<T> &res);
 
   // Helper functions for creating responses
   boost::beast::http::response<boost::beast::http::string_body>
@@ -31,7 +32,7 @@ namespace bytebucket
   boost::beast::http::response<boost::beast::http::string_body>
   handle_post_upload(const boost::beast::http::request<boost::beast::http::string_body> &req);
 
-  boost::beast::http::response<boost::beast::http::string_body>
+  boost::beast::http::message_generator
   handle_get_download(const boost::beast::http::request<boost::beast::http::string_body> &req);
 
   // Main request handler

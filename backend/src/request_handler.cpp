@@ -10,7 +10,8 @@ namespace bytebucket
 {
   const std::string SERVER_NAME{"ByteBucket-Server"};
 
-  void addCorsHeaders(boost::beast::http::response<boost::beast::http::string_body> &res)
+  template <typename T>
+  void addCorsHeaders(boost::beast::http::response<T> &res)
   {
     // TODO: specific frontend access control urls
     res.set(boost::beast::http::field::access_control_allow_origin, "*");
@@ -18,7 +19,6 @@ namespace bytebucket
     res.set(boost::beast::http::field::access_control_allow_headers, "Content-Type");
   }
 
-  // Helper function to create error responses
   boost::beast::http::response<boost::beast::http::string_body>
   create_error_response(boost::beast::http::status status, unsigned version, const std::string &error_message)
   {
@@ -31,7 +31,6 @@ namespace bytebucket
     return res;
   }
 
-  // Helper function to create success responses
   boost::beast::http::response<boost::beast::http::string_body>
   create_success_response(boost::beast::http::status status, unsigned version, const std::string &content_type, const std::string &body)
   {
@@ -44,7 +43,6 @@ namespace bytebucket
     return res;
   }
 
-  // OPTIONS endpoint handler
   boost::beast::http::response<boost::beast::http::string_body>
   handle_options(unsigned version)
   {
@@ -103,7 +101,6 @@ namespace bytebucket
       size_t colon_pos = body.find(":", parent_pos);
       size_t number_start = body.find_first_of("0123456789", colon_pos + 1);
       size_t number_end = body.find_first_not_of("0123456789", number_start);
-
       try
       {
         parent_id = std::stoi(body.substr(number_start, number_end - number_start));
@@ -119,13 +116,11 @@ namespace bytebucket
     if (!db)
       return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
                                    "Database connection failed");
-
     DatabaseResult<int> dbResult = db->insertFolder(folder_name, parent_id);
     if (!dbResult.success() || !dbResult.value.has_value())
       return create_error_response(boost::beast::http::status::bad_request, req.version(),
                                    dbResult.errorMessage);
 
-    // Build response JSON
     std::ostringstream response_json;
     response_json << R"({"id":)" << *dbResult.value
                   << R"(,"name":")" << folder_name << R"(")";
@@ -141,7 +136,6 @@ namespace bytebucket
                                    "application/json", response_json.str());
   }
 
-  // File upload endpoint handler
   boost::beast::http::response<boost::beast::http::string_body>
   handle_post_upload(const boost::beast::http::request<boost::beast::http::string_body> &req)
   {
@@ -169,25 +163,86 @@ namespace bytebucket
       return create_error_response(boost::beast::http::status::bad_request, req.version(),
                                    "No files found in request");
 
+    auto db = Database::create();
+    if (!db)
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Database connection failed");
+
+    std::optional<int> folder_id;
+    for (const auto &field : multipart_data->fields)
+    {
+      if (field.name == "folder_id")
+      {
+        try
+        {
+          folder_id = std::stoi(field.value);
+        }
+        catch (...)
+        {
+          return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                       "Invalid folder_id");
+        }
+        break;
+      }
+    }
+
+    if (!folder_id.has_value())
+    {
+      auto root_folders = db->getFoldersByParent(std::nullopt);
+      if (root_folders.success() && !root_folders.value->empty())
+      {
+        folder_id = root_folders.value->front().id;
+      }
+      else
+      {
+        auto root_folder_result = db->insertFolder("root", std::nullopt);
+        if (root_folder_result.success() && root_folder_result.value.has_value())
+        {
+          folder_id = root_folder_result.value.value();
+        }
+        else
+        {
+          return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                       "Failed to create root folder");
+        }
+      }
+    }
+
     std::ostringstream response_json;
     response_json << R"({"files":[)";
     bool first_file = true;
 
     for (const auto &file : multipart_data->files)
     {
-      auto file_id = FileStorage::saveFile(file.filename, file.content, file.content_type);
-      if (!file_id.has_value())
+      auto storage_id = FileStorage::saveFile(file.filename, file.content, file.content_type);
+      if (!storage_id.has_value())
         return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
-                                     "Failed to save file");
+                                     "Failed to save file to storage");
+
+      auto db_result = db->addFile(
+          file.filename,
+          folder_id.value(),
+          static_cast<int>(file.content.size()),
+          file.content_type,
+          storage_id.value());
+
+      if (!db_result.success() || !db_result.value.has_value())
+      {
+        // TODO: Add FileStorage::deleteFile method
+        return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                     "Failed to save file to database: " + db_result.errorMessage);
+      }
 
       if (!first_file)
         response_json << ",";
       first_file = false;
 
-      response_json << R"({"id":")" << file_id.value() << R"(",)"
+      response_json << R"({"id":)" << db_result.value.value() << R"(",)"
+                    << R"("storage_id":")" << storage_id.value() << R"(",)"
                     << R"("filename":")" << file.filename << R"(",)"
                     << R"("content_type":")" << file.content_type << R"(",)"
-                    << R"("size":)" << file.content.size() << "}";
+                    << R"("size":)" << file.content.size() << R"(",)"
+                    << R"("folder_id":)" << folder_id.value() << "}";
     }
 
     response_json << "]}";
@@ -196,33 +251,60 @@ namespace bytebucket
                                    "application/json", response_json.str());
   }
 
-  boost::beast::http::response<boost::beast::http::string_body>
+  boost::beast::http::response<boost::beast::http::vector_body<char>>
+  create_binary_response(boost::beast::http::status status, unsigned version,
+                         const std::string &content_type, const std::string &filename,
+                         const std::vector<char> &content)
+  {
+    boost::beast::http::response<boost::beast::http::vector_body<char>> res{status, version};
+    res.set(boost::beast::http::field::server, SERVER_NAME);
+    res.set(boost::beast::http::field::content_type, content_type);
+    res.set(boost::beast::http::field::content_disposition, "attachment; filename=\"" + filename + "\"");
+    addCorsHeaders(res);
+    res.body() = content;
+    res.prepare_payload();
+    return res;
+  }
+
+  boost::beast::http::message_generator
   handle_get_download(const boost::beast::http::request<boost::beast::http::string_body> &req)
   {
     std::string target = std::string(req.target());
-    std::string file_id = target.substr(10); // Remove "/download/" prefix
+    std::string file_id_str = target.substr(10); // Remove "/download/" prefix
 
-    if (file_id.empty())
+    if (file_id_str.empty())
       return create_error_response(boost::beast::http::status::bad_request, req.version(),
                                    "File ID is required");
 
-    // TODO: Replace with actual file lookup
-    if (file_id == "test123")
+    int file_id;
+    try
     {
-      boost::beast::http::response<boost::beast::http::string_body> res{boost::beast::http::status::ok, req.version()};
-      res.set(boost::beast::http::field::server, SERVER_NAME);
-      res.set(boost::beast::http::field::content_type, "text/plain");
-      res.set(boost::beast::http::field::content_disposition, "attachment; filename=\"test_file_" + file_id + ".txt\"");
-      addCorsHeaders(res);
-      res.body() = "Found file ID! " + file_id;
-      res.prepare_payload();
-      return res;
+      file_id = std::stoi(file_id_str);
     }
-    else
+    catch (...)
     {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid file ID format");
+    }
+
+    auto db = Database::create();
+    if (!db)
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Database connection failed");
+
+    auto db_result = db->getFileById(file_id);
+    if (!db_result.success() || !db_result.value.has_value())
       return create_error_response(boost::beast::http::status::not_found, req.version(),
                                    "File not found");
-    }
+
+    const FileRecord &file_record = db_result.value.value();
+    auto file_content = FileStorage::readFile(file_record.storageId);
+    if (!file_content.has_value())
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to read file from storage");
+
+    return create_binary_response(boost::beast::http::status::ok, req.version(),
+                                  file_record.contentType, file_record.name, file_content.value());
   }
 
   boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req)
@@ -250,6 +332,18 @@ namespace bytebucket
     // GET /download/{id}
     if (req.method() == boost::beast::http::verb::get && req.target().starts_with("/download/"))
       return handle_get_download(req);
+
+    // GET /tags
+    // TODO
+
+    // POST /tags
+    // TODO
+
+    // GET /metadata
+    // TODO
+
+    // POST /metadata
+    // TODO
 
     // 404 Not Found
     return create_success_response(boost::beast::http::status::not_found, req.version(),

@@ -85,6 +85,37 @@ namespace bytebucket
     return std::filesystem::exists(file_path);
   }
 
+  std::optional<std::vector<char>> FileStorage::readFile(const std::string &file_id)
+  {
+    if (!fileExists(file_id))
+      return std::nullopt;
+
+    std::filesystem::path storage_path = getStorageDir();
+    std::filesystem::path file_path = storage_path / file_id;
+
+    try
+    {
+      std::ifstream file(file_path, std::ios::binary);
+      if (!file.is_open())
+        return std::nullopt;
+
+      file.seekg(0, std::ios::end);
+      std::streamsize size = file.tellg();
+      file.seekg(0, std::ios::beg);
+
+      std::vector<char> content(size);
+      if (!file.read(content.data(), size))
+        return std::nullopt;
+
+      return content;
+    }
+    catch (const std::exception &e)
+    {
+      std::cerr << "Error reading file: " << e.what() << std::endl;
+      return std::nullopt;
+    }
+  }
+
   std::string FileStorage::generateFileId()
   {
     // Generate a unique ID using timestamp + random number
