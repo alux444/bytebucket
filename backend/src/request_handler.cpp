@@ -5,6 +5,8 @@
 #include <boost/beast/http.hpp>
 #include <string>
 #include <sstream>
+#include <iomanip>
+#include <ctime>
 
 namespace bytebucket
 {
@@ -63,6 +65,148 @@ namespace bytebucket
   handle_root(unsigned version)
   {
     return create_success_response(boost::beast::http::status::ok, version, "text/plain", "ByteBucket");
+  }
+
+  boost::beast::http::response<boost::beast::http::string_body> handle_get_folder(const boost::beast::http::request<boost::beast::http::string_body> &req)
+  {
+    auto db = Database::create();
+    if (!db)
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to initialize database");
+
+    std::string target = std::string(req.target());
+    std::optional<int> folder_id;
+
+    if (target.length() > 8 && target.substr(0, 8) == "/folder/")
+    {
+      std::string folder_id_str = target.substr(8); // Remove "/folder/"
+      if (!folder_id_str.empty())
+      {
+        try
+        {
+          folder_id = std::stoi(folder_id_str);
+        }
+        catch (const std::exception &)
+        {
+          return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                       "Invalid folder ID");
+        }
+      }
+    }
+
+    if (folder_id.has_value())
+    {
+      auto folder_result = db->getFolderById(folder_id.value());
+      if (!folder_result.success())
+      {
+        return create_error_response(boost::beast::http::status::not_found, req.version(),
+                                     "Folder not found");
+      }
+    }
+
+    auto subfolders_result = db->getFoldersByParent(folder_id);
+    if (!subfolders_result.success())
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to retrieve subfolders");
+    }
+
+    DatabaseResult<std::vector<FileRecord>> files_result;
+    if (folder_id.has_value())
+    {
+      files_result = db->getFilesByFolder(folder_id.value());
+    }
+    else
+    {
+      auto root_folders = db->getFoldersByParent(std::nullopt);
+      if (root_folders.success() && !root_folders.value->empty())
+      {
+        int root_id = root_folders.value->front().id;
+        files_result = db->getFilesByFolder(root_id);
+      }
+      else
+      {
+        files_result.value = std::vector<FileRecord>{};
+        files_result.error = DatabaseError::Success;
+      }
+    }
+
+    if (!files_result.success())
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to retrieve files");
+    }
+
+    std::ostringstream json_response;
+    json_response << "{";
+
+    if (folder_id.has_value())
+    {
+      auto folder_result = db->getFolderById(folder_id.value());
+      if (folder_result.success())
+      {
+        json_response << R"("folder":{"id":)" << folder_result.value->id
+                      << R"(,"name":")" << folder_result.value->name << R"(")"
+                      << R"(,"parentId":)";
+        if (folder_result.value->parentId.has_value())
+          json_response << folder_result.value->parentId.value();
+        else
+          json_response << "null";
+        json_response << "},";
+      }
+    }
+    else
+    {
+      json_response << R"("folder":{"id":null,"name":"root","parentId":null},)";
+    }
+
+    json_response << R"("subfolders":[)";
+    for (size_t i = 0; i < subfolders_result.value->size(); ++i)
+    {
+      const auto &folder = (*subfolders_result.value)[i];
+      if (i > 0)
+        json_response << ",";
+      json_response << R"({"id":)" << folder.id
+                    << R"(,"name":")" << folder.name << R"(")"
+                    << R"(,"parentId":)";
+      if (folder.parentId.has_value())
+        json_response << folder.parentId.value();
+      else
+        json_response << "null";
+      json_response << "}";
+    }
+    json_response << "],";
+
+    json_response << R"("files":[)";
+    for (size_t i = 0; i < files_result.value->size(); ++i)
+    {
+      const auto &file = (*files_result.value)[i];
+      if (i > 0)
+        json_response << ",";
+
+      auto created_time_t = std::chrono::system_clock::to_time_t(file.createdAt);
+      auto updated_time_t = std::chrono::system_clock::to_time_t(file.updatedAt);
+
+      std::ostringstream created_ss, updated_ss;
+      created_ss << std::put_time(std::gmtime(&created_time_t), "%Y-%m-%dT%H:%M:%SZ");
+      updated_ss << std::put_time(std::gmtime(&updated_time_t), "%Y-%m-%dT%H:%M:%SZ");
+
+      json_response << R"({"id":)" << file.id
+                    << R"(,"name":")" << file.name << R"(")"
+                    << R"(,"folderId":)" << file.folderId
+                    << R"(,"size":)" << file.size
+                    << R"(,"contentType":")" << file.contentType << R"(")"
+                    << R"(,"createdAt":")" << created_ss.str() << R"(")"
+                    << R"(,"updatedAt":")" << updated_ss.str() << R"(")"
+                    << R"(,"storageId":")" << file.storageId << R"(")";
+      json_response << "}";
+    }
+    json_response << "]";
+
+    json_response << "}";
+
+    return create_success_response(boost::beast::http::status::ok, req.version(),
+                                   "application/json", json_response.str());
   }
 
   boost::beast::http::response<boost::beast::http::string_body>
@@ -320,6 +464,11 @@ namespace bytebucket
     // GET /
     if (req.method() == boost::beast::http::verb::get && req.target() == "/")
       return handle_root(req.version());
+
+    // GET /folder or GET /folder/{id}
+    if (req.method() == boost::beast::http::verb::get &&
+        (req.target() == "/folder" || req.target().starts_with("/folder/")))
+      return handle_get_folder(req);
 
     // POST /folder
     if (req.method() == boost::beast::http::verb::post && req.target() == "/folder")
