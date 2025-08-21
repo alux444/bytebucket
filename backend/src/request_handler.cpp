@@ -237,11 +237,11 @@ namespace bytebucket
         response_json << ",";
       first_file = false;
 
-      response_json << R"({"id":)" << db_result.value.value() << R"(",)"
+      response_json << R"({"id":)" << db_result.value.value() << R"(,)"
                     << R"("storage_id":")" << storage_id.value() << R"(",)"
                     << R"("filename":")" << file.filename << R"(",)"
                     << R"("content_type":")" << file.content_type << R"(",)"
-                    << R"("size":)" << file.content.size() << R"(",)"
+                    << R"("size":)" << file.content.size() << R"(,)"
                     << R"("folder_id":)" << folder_id.value() << "}";
     }
 
