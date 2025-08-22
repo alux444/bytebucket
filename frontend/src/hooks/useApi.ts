@@ -5,8 +5,7 @@ import type { CreateFolderRequest, UploadFilesRequest, FolderResponse, UploadRes
 export const queryKeys = {
   health: ["health"] as const,
   root: ["root"] as const,
-  folders: ["folders"] as const,
-  files: ["files"] as const,
+  folderContents: (folderId?: number) => ["folderContents", folderId] as const,
 } as const;
 
 export const useHealth = () => {
@@ -26,15 +25,25 @@ export const useRoot = () => {
   });
 };
 
+export const useFolderContents = (folderId?: number, enableAutomaticRefetching: boolean = true) => {
+  return useQuery({
+    queryKey: queryKeys.folderContents(folderId),
+    queryFn: () => api.getFolderContents({ folder_id: folderId }),
+    enabled: enableAutomaticRefetching,
+    staleTime: 30000,
+    gcTime: 30000, // 5 minute cache
+    retry: 3,
+  });
+};
+
 export const useCreateFolder = () => {
   const queryClient = useQueryClient();
 
   return useMutation<FolderResponse, Error, CreateFolderRequest>({
     mutationFn: api.createFolder,
-    onSuccess: () => {
-      // Invalidate folder queries to refetch data
+    onSuccess: (data) => {
       queryClient.invalidateQueries({
-        queryKey: queryKeys.folders,
+        queryKey: queryKeys.folderContents(data.parent_id || undefined),
       });
     },
     onError: (error) => {
@@ -48,11 +57,13 @@ export const useUploadFiles = () => {
 
   return useMutation<UploadResponse, Error, UploadFilesRequest>({
     mutationFn: api.uploadFiles,
-    onSuccess: () => {
-      // Invalidate file queries to refetch data
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.files,
-      });
+    onSuccess: (data) => {
+      if (data.files.length > 0) {
+        const folderId = data.files[0].folder_id;
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.folderContents(folderId),
+        });
+      }
     },
     onError: (error) => {
       console.error("Failed to upload files:", error);
