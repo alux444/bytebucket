@@ -57,11 +57,7 @@ export const api = {
   },
 
   getFolderContents: (params: GetFolderRequest = {}): Promise<FolderContentsResponse> => {
-    const searchParams = new URLSearchParams();
-    if (params.folder_id !== undefined) {
-      searchParams.append("folder_id", params.folder_id.toString());
-    }
-    const endpoint = `/folder${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+    const endpoint = `/folder/${params.folder_id ? params.folder_id : ""}`;
     return apiRequest<FolderContentsResponse>(endpoint);
   },
 
