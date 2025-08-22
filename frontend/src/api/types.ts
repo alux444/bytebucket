@@ -22,11 +22,44 @@ export interface FileResponse {
   folder_id: number;
 }
 
+export interface FolderContentsResponse {
+  folder: FolderInfo;
+  subfolders: SubfolderItem[];
+  files: FileItem[];
+}
+
+export interface FolderInfo {
+  id: number | null;
+  name: string;
+  parentId: number | null;
+}
+
+export interface SubfolderItem {
+  id: number;
+  name: string;
+  parentId: number | null;
+}
+
+export interface FileItem {
+  id: number;
+  name: string;
+  folderId: number;
+  size: number;
+  contentType: string;
+  storageId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UploadResponse {
   files: FileResponse[];
 }
 
 // Requests
+export interface GetFolderRequest {
+  folder_id?: number; // default is root
+}
+
 export interface CreateFolderRequest {
   name: string;
   parent_id?: number;
