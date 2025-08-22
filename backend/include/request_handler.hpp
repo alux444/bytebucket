@@ -26,6 +26,8 @@ namespace bytebucket
   boost::beast::http::response<boost::beast::http::string_body>
   handle_root(unsigned version);
 
+  boost::beast::http::response<boost::beast::http::string_body> handle_get_folder(const boost::beast::http::request<boost::beast::http::string_body> &req);
+
   boost::beast::http::response<boost::beast::http::string_body>
   handle_post_folder(const boost::beast::http::request<boost::beast::http::string_body> &req);
 
