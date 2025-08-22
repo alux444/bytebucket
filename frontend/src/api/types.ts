@@ -22,20 +22,33 @@ export interface FileResponse {
   folder_id: number;
 }
 
-export interface FolderItem {
-  id: number;
-  name: string;
-  type: "folder" | "file";
-  size?: number;
-  content_type?: string;
-  storage_id?: string;
-  created_at?: string;
-  parent_id?: number;
+export interface FolderContentsResponse {
+  folder: FolderInfo;
+  subfolders: SubfolderItem[];
+  files: FileItem[];
 }
 
-export interface FolderContentsResponse {
-  folder_id: number;
-  items: FolderItem[];
+export interface FolderInfo {
+  id: number | null;
+  name: string;
+  parentId: number | null;
+}
+
+export interface SubfolderItem {
+  id: number;
+  name: string;
+  parentId: number | null;
+}
+
+export interface FileItem {
+  id: number;
+  name: string;
+  folderId: number;
+  size: number;
+  contentType: string;
+  storageId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface UploadResponse {
