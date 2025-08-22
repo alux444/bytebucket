@@ -73,22 +73,37 @@ export const api = {
     });
   },
 
-  uploadFiles: (data: UploadFilesRequest): Promise<UploadResponse> => {
+  uploadFiles: async (data: UploadFilesRequest): Promise<UploadResponse> => {
     const formData = new FormData();
+    
+    // Add each file with the field name 'file'
     data.files.forEach((file) => {
-      formData.append('files', file);
+      formData.append('file', file);
     });
+    
     if (data.folder_id) {
       formData.append('folder_id', data.folder_id.toString());
     }
 
-    return apiRequest<UploadResponse>('/upload', {
+    const url = `${API_BASE_URL}/upload`;
+    
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        // Don't set Content-Type for FormData, let the browser set it with boundary
-      },
+      // Don't set Content-Type for FormData, let the browser set it with boundary
       body: formData,
     });
+
+    if (!response.ok) {
+      let errorData: ApiError;
+      try {
+        errorData = await response.json();
+      } catch {
+        errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+      }
+      throw new ApiErrorClass(response.status, errorData);
+    }
+
+    return response.json();
   },
 
   downloadFile: async (fileId: number): Promise<Blob> => {
