@@ -69,6 +69,17 @@ export interface FileItem {
   storageId: string;
   createdAt: string;
   updatedAt: string;
+  tags: FileTag[];
+  metadata: FileMetadata[];
+}
+
+export interface FileTag {
+  name: string;
+}
+
+export interface FileMetadata {
+  key: string;
+  value: string;
 }
 
 export interface FileRecord {
