@@ -899,6 +899,39 @@ namespace bytebucket
     result.error = DatabaseError::Success;
     return result;
   }
+
+  DatabaseResult<std::vector<std::string>> Database::getAllTags() const
+  {
+    DatabaseResult<std::vector<std::string>> result;
+    const char *sql = R"(
+      SELECT name 
+      FROM tags 
+      ORDER BY name
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare get all tags statement";
+      return result;
+    }
+
+    std::vector<std::string> tags;
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+      const char *tagName = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+      if (tagName)
+      {
+        tags.emplace_back(tagName);
+      }
+    }
+
+    sqlite3_finalize(stmt);
+    result.value = std::move(tags);
+    result.error = DatabaseError::Success;
+    return result;
+  }
 #pragma endregion tags
 
 #pragma region metadata

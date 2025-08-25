@@ -210,6 +210,38 @@ namespace bytebucket
   }
 
   boost::beast::http::response<boost::beast::http::string_body>
+  handle_get_tags(const boost::beast::http::request<boost::beast::http::string_body> &req)
+  {
+    auto db = Database::create();
+    if (!db)
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to initialize database");
+
+    auto tags_result = db->getAllTags();
+    if (!tags_result.success())
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to retrieve tags: " + tags_result.errorMessage);
+    }
+
+    std::ostringstream json_response;
+    json_response << R"({"tags":[)";
+
+    const auto &tags = *tags_result.value;
+    for (size_t i = 0; i < tags.size(); ++i)
+    {
+      if (i > 0)
+        json_response << ",";
+      json_response << R"(")" << tags[i] << R"(")";
+    }
+
+    json_response << "]}";
+
+    return create_success_response(boost::beast::http::status::ok, req.version(),
+                                   "application/json", json_response.str());
+  }
+
+  boost::beast::http::response<boost::beast::http::string_body>
   handle_post_folder(const boost::beast::http::request<boost::beast::http::string_body> &req)
   {
     auto content_type_it = req.find(boost::beast::http::field::content_type);
@@ -479,11 +511,13 @@ namespace bytebucket
       return handle_post_upload(req);
 
     // GET /download/{id}
-    if (req.method() == boost::beast::http::verb::get && req.target().starts_with("/download/"))
+    if (req.method() == boost::beast::http::verb::get &&
+        req.target().length() > 10 && std::string(req.target()).substr(0, 10) == "/download/")
       return handle_get_download(req);
 
-    // GET /tags
-    // TODO
+    // GET /tags - gets all tags, not specifics
+    if (req.method() == boost::beast::http::verb::get && req.target() == "/tags")
+      return handle_get_tags(req);
 
     // POST /tags
     // TODO
