@@ -23,7 +23,13 @@ void do_session(boost::asio::ip::tcp::socket socket)
     for (;;)
     {
       boost::beast::http::request<boost::beast::http::string_body> req;
-      boost::beast::http::read(socket, buffer, req);
+
+      // Create a parser with increased body limit for file uploads
+      boost::beast::http::request_parser<boost::beast::http::string_body> parser;
+      parser.body_limit(100 * 1024 * 1024); // body limit 100MB
+
+      boost::beast::http::read(socket, buffer, parser);
+      req = parser.release();
 
       // Store keep_alive status before moving the request
       bool keep_alive = req.keep_alive();
