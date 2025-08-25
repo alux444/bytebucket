@@ -443,6 +443,113 @@ namespace bytebucket
   }
 
   boost::beast::http::response<boost::beast::http::string_body>
+  handle_post_file_metadata(const boost::beast::http::request<boost::beast::http::string_body> &req)
+  {
+    auto content_type_it = req.find(boost::beast::http::field::content_type);
+    if (content_type_it == req.end() ||
+        content_type_it->value().find("application/json") == std::string::npos)
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Content-Type must be application/json");
+
+    std::string target = std::string(req.target());
+    // Expected format: /files/{fileId}/metadata
+    if (target.length() <= 7 || target.substr(0, 7) != "/files/")
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid URL format");
+
+    size_t metadata_pos = target.find("/metadata");
+    if (metadata_pos == std::string::npos)
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid URL format");
+
+    std::string file_id_str = target.substr(7, metadata_pos - 7); // Extract between "/files/" and "/metadata"
+    if (file_id_str.empty())
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "File ID is required");
+
+    int file_id;
+    try
+    {
+      file_id = std::stoi(file_id_str);
+    }
+    catch (const std::exception &)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid file ID format");
+    }
+
+    std::string body = req.body();
+    if (body.empty())
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Request body is required");
+
+    auto db = Database::create();
+    if (!db)
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Database connection failed");
+
+    auto file_result = db->getFileById(file_id);
+    if (!file_result.success() || !file_result.value.has_value())
+      return create_error_response(boost::beast::http::status::not_found, req.version(),
+                                   "File not found");
+
+    // Expected format: {"key1": "value1", "key2": "value2", ...}
+    size_t pos = 0;
+    bool any_metadata_added = false;
+
+    while (pos < body.length())
+    {
+      // Find next key
+      size_t key_start = body.find("\"", pos);
+      if (key_start == std::string::npos)
+        break;
+
+      size_t key_end = body.find("\"", key_start + 1);
+      if (key_end == std::string::npos)
+        break;
+
+      std::string key = body.substr(key_start + 1, key_end - key_start - 1);
+
+      size_t colon_pos = body.find(":", key_end);
+      if (colon_pos == std::string::npos)
+        break;
+
+      size_t value_start = body.find("\"", colon_pos);
+      if (value_start == std::string::npos)
+        break;
+      size_t value_end = body.find("\"", value_start + 1);
+      if (value_end == std::string::npos)
+        break;
+
+      std::string value = body.substr(value_start + 1, value_end - value_start - 1);
+
+      if (key.empty())
+      {
+        pos = value_end + 1;
+        continue;
+      }
+
+      auto set_result = db->setFileMetadata(file_id, key, value);
+      if (!set_result.success())
+        return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                     "Failed to set metadata: " + set_result.errorMessage);
+
+      any_metadata_added = true;
+      pos = value_end + 1;
+    }
+
+    if (!any_metadata_added)
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "No valid metadata key-value pairs found in request");
+
+    std::ostringstream json_response;
+    buildFileJson(json_response, file_result.value.value(), db);
+
+    return create_success_response(boost::beast::http::status::ok, req.version(),
+                                   "application/json", json_response.str());
+  }
+
+  boost::beast::http::response<boost::beast::http::string_body>
   handle_post_folder(const boost::beast::http::request<boost::beast::http::string_body> &req)
   {
     auto content_type_it = req.find(boost::beast::http::field::content_type);
@@ -735,8 +842,11 @@ namespace bytebucket
         std::string(req.target()).find("/tags") != std::string::npos)
       return handle_post_file_tags(req);
 
-    // POST /metadata/{id}
-    // TODO
+    // POST /files/{fileId}/metadata - add metadata to file
+    if (req.method() == boost::beast::http::verb::post &&
+        req.target().length() > 7 && std::string(req.target()).substr(0, 7) == "/files/" &&
+        std::string(req.target()).find("/metadata") != std::string::npos)
+      return handle_post_file_metadata(req);
 
     // 404 Not Found
     return create_success_response(boost::beast::http::status::not_found, req.version(),
