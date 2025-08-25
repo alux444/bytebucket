@@ -27,6 +27,26 @@ export interface FolderContentsResponse {
   subfolders: SubfolderItem[];
   files: FileItem[];
 }
+export interface UploadResponse {
+  files: FileResponse[];
+}
+
+// Requests
+export interface GetFolderRequest {
+  folder_id?: number; // default is root
+}
+
+export interface CreateFolderRequest {
+  name: string;
+  parent_id?: number;
+}
+
+export interface UploadFilesRequest {
+  files: File[];
+  folder_id?: number;
+}
+
+// Entities
 
 export interface FolderInfo {
   id: number | null;
@@ -51,26 +71,6 @@ export interface FileItem {
   updatedAt: string;
 }
 
-export interface UploadResponse {
-  files: FileResponse[];
-}
-
-// Requests
-export interface GetFolderRequest {
-  folder_id?: number; // default is root
-}
-
-export interface CreateFolderRequest {
-  name: string;
-  parent_id?: number;
-}
-
-export interface UploadFilesRequest {
-  files: File[];
-  folder_id?: number;
-}
-
-// Entities
 export interface FileRecord {
   id: number;
   name: string;

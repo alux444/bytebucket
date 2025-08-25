@@ -67,6 +67,55 @@ namespace bytebucket
     return create_success_response(boost::beast::http::status::ok, version, "text/plain", "ByteBucket");
   }
 
+  void buildFileJson(std::ostringstream &json_stream, const FileRecord &file, std::shared_ptr<Database> db)
+  {
+    auto created_time_t = std::chrono::system_clock::to_time_t(file.createdAt);
+    auto updated_time_t = std::chrono::system_clock::to_time_t(file.updatedAt);
+
+    std::ostringstream created_ss, updated_ss;
+    created_ss << std::put_time(std::gmtime(&created_time_t), "%Y-%m-%dT%H:%M:%SZ");
+    updated_ss << std::put_time(std::gmtime(&updated_time_t), "%Y-%m-%dT%H:%M:%SZ");
+
+    json_stream << R"({"id":)" << file.id
+                << R"(,"name":")" << file.name << R"(")"
+                << R"(,"folderId":)" << file.folderId
+                << R"(,"size":)" << file.size
+                << R"(,"contentType":")" << file.contentType << R"(")"
+                << R"(,"createdAt":")" << created_ss.str() << R"(")"
+                << R"(,"updatedAt":")" << updated_ss.str() << R"(")"
+                << R"(,"storageId":")" << file.storageId << R"(")";
+
+    auto tags_result = db->getFileTags(file.id);
+    json_stream << R"(,"tags":[)";
+    if (tags_result.success() && tags_result.value.has_value())
+    {
+      const auto &tags = *tags_result.value;
+      for (size_t j = 0; j < tags.size(); ++j)
+      {
+        if (j > 0)
+          json_stream << ",";
+        json_stream << R"(")" << tags[j] << R"(")";
+      }
+    }
+    json_stream << "]";
+
+    auto metadata_result = db->getAllFileMetadata(file.id);
+    json_stream << R"(,"metadata":{)";
+    if (metadata_result.success() && metadata_result.value.has_value())
+    {
+      const auto &metadata = *metadata_result.value;
+      for (size_t j = 0; j < metadata.size(); ++j)
+      {
+        if (j > 0)
+          json_stream << ",";
+        json_stream << R"(")" << metadata[j].first << R"(":")" << metadata[j].second << R"(")";
+      }
+    }
+    json_stream << "}";
+
+    json_stream << "}";
+  }
+
   boost::beast::http::response<boost::beast::http::string_body> handle_get_folder(const boost::beast::http::request<boost::beast::http::string_body> &req)
   {
     auto db = Database::create();
@@ -79,7 +128,7 @@ namespace bytebucket
 
     if (target.length() > 8 && target.substr(0, 8) == "/folder/")
     {
-      std::string folder_id_str = target.substr(8); // Remove "/folder/"
+      std::string folder_id_str = target.substr(8); // Remove "/folder/" prefix
       if (!folder_id_str.empty())
       {
         try
@@ -92,7 +141,9 @@ namespace bytebucket
                                        "Invalid folder ID");
         }
       }
+      // If folder_id_str is empty (i.e., request was "/folder/"), treat as root folder
     }
+    // For "/folder" or "/folder/" without ID, folder_id remains std::nullopt (root folder)
 
     if (folder_id.has_value())
     {
@@ -184,26 +235,43 @@ namespace bytebucket
       if (i > 0)
         json_response << ",";
 
-      auto created_time_t = std::chrono::system_clock::to_time_t(file.createdAt);
-      auto updated_time_t = std::chrono::system_clock::to_time_t(file.updatedAt);
-
-      std::ostringstream created_ss, updated_ss;
-      created_ss << std::put_time(std::gmtime(&created_time_t), "%Y-%m-%dT%H:%M:%SZ");
-      updated_ss << std::put_time(std::gmtime(&updated_time_t), "%Y-%m-%dT%H:%M:%SZ");
-
-      json_response << R"({"id":)" << file.id
-                    << R"(,"name":")" << file.name << R"(")"
-                    << R"(,"folderId":)" << file.folderId
-                    << R"(,"size":)" << file.size
-                    << R"(,"contentType":")" << file.contentType << R"(")"
-                    << R"(,"createdAt":")" << created_ss.str() << R"(")"
-                    << R"(,"updatedAt":")" << updated_ss.str() << R"(")"
-                    << R"(,"storageId":")" << file.storageId << R"(")";
-      json_response << "}";
+      buildFileJson(json_response, file, db);
     }
     json_response << "]";
 
     json_response << "}";
+
+    return create_success_response(boost::beast::http::status::ok, req.version(),
+                                   "application/json", json_response.str());
+  }
+
+  boost::beast::http::response<boost::beast::http::string_body>
+  handle_get_tags(const boost::beast::http::request<boost::beast::http::string_body> &req)
+  {
+    auto db = Database::create();
+    if (!db)
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to initialize database");
+
+    auto tags_result = db->getAllTags();
+    if (!tags_result.success())
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to retrieve tags: " + tags_result.errorMessage);
+    }
+
+    std::ostringstream json_response;
+    json_response << R"({"tags":[)";
+
+    const auto &tags = *tags_result.value;
+    for (size_t i = 0; i < tags.size(); ++i)
+    {
+      if (i > 0)
+        json_response << ",";
+      json_response << R"(")" << tags[i] << R"(")";
+    }
+
+    json_response << "]}";
 
     return create_success_response(boost::beast::http::status::ok, req.version(),
                                    "application/json", json_response.str());
@@ -381,12 +449,16 @@ namespace bytebucket
         response_json << ",";
       first_file = false;
 
-      response_json << R"({"id":)" << db_result.value.value() << R"(,)"
-                    << R"("storage_id":")" << storage_id.value() << R"(",)"
-                    << R"("filename":")" << file.filename << R"(",)"
-                    << R"("content_type":")" << file.content_type << R"(",)"
-                    << R"("size":)" << file.content.size() << R"(,)"
-                    << R"("folder_id":)" << folder_id.value() << "}";
+      auto file_record_result = db->getFileById(db_result.value.value());
+      if (file_record_result.success() && file_record_result.value.has_value())
+      {
+        buildFileJson(response_json, file_record_result.value.value(), db);
+      }
+      else
+      {
+        return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                     "Error with fetching file after saving to db" + file_record_result.errorMessage);
+      }
     }
 
     response_json << "]}";
@@ -465,9 +537,10 @@ namespace bytebucket
     if (req.method() == boost::beast::http::verb::get && req.target() == "/")
       return handle_root(req.version());
 
-    // GET /folder or GET /folder/{id}
+    // GET /folder, /folder/, or /folder/{id}
     if (req.method() == boost::beast::http::verb::get &&
-        (req.target() == "/folder" || req.target().starts_with("/folder/")))
+        (req.target() == "/folder" || req.target() == "/folder/" ||
+         (req.target().length() > 8 && std::string(req.target()).substr(0, 8) == "/folder/")))
       return handle_get_folder(req);
 
     // POST /folder
@@ -479,19 +552,18 @@ namespace bytebucket
       return handle_post_upload(req);
 
     // GET /download/{id}
-    if (req.method() == boost::beast::http::verb::get && req.target().starts_with("/download/"))
+    if (req.method() == boost::beast::http::verb::get &&
+        req.target().length() > 10 && std::string(req.target()).substr(0, 10) == "/download/")
       return handle_get_download(req);
 
-    // GET /tags
+    // GET /tags - gets all tags, not specifics
+    if (req.method() == boost::beast::http::verb::get && req.target() == "/tags")
+      return handle_get_tags(req);
+
+    // POST /tags/{id}
     // TODO
 
-    // POST /tags
-    // TODO
-
-    // GET /metadata
-    // TODO
-
-    // POST /metadata
+    // POST /metadata/{id}
     // TODO
 
     // 404 Not Found
