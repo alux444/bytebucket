@@ -78,12 +78,12 @@ namespace bytebucket
 
     json_stream << R"({"id":)" << file.id
                 << R"(,"name":")" << file.name << R"(")"
-                << R"(,"folderId":)" << file.folderId
+                << R"(,"folder_id":)" << file.folderId
                 << R"(,"size":)" << file.size
-                << R"(,"contentType":")" << file.contentType << R"(")"
-                << R"(,"createdAt":")" << created_ss.str() << R"(")"
-                << R"(,"updatedAt":")" << updated_ss.str() << R"(")"
-                << R"(,"storageId":")" << file.storageId << R"(")";
+                << R"(,"content_type":")" << file.contentType << R"(")"
+                << R"(,"created_at":")" << created_ss.str() << R"(")"
+                << R"(,"updated_at":")" << updated_ss.str() << R"(")"
+                << R"(,"storage_id":")" << file.storageId << R"(")";
 
     auto tags_result = db->getFileTags(file.id);
     json_stream << R"(,"tags":[)";

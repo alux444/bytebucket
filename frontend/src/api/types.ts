@@ -15,11 +15,15 @@ export interface FolderResponse {
 
 export interface FileResponse {
   id: number;
-  storage_id: string;
-  filename: string;
-  content_type: string;
-  size: number;
+  name: string;
   folder_id: number;
+  size: number;
+  content_type: string;
+  storage_id: string;
+  created_at: string;
+  updated_at: string;
+  tags: string[];
+  metadata: Record<string, string>;
 }
 
 export interface FolderContentsResponse {
@@ -46,29 +50,39 @@ export interface UploadFilesRequest {
   folder_id?: number;
 }
 
+export interface CreateTagRequest {
+  name: string;
+}
+
+export interface AddFileTagRequest {
+  tagName: string;
+}
+
+export type AddFileMetadataRequest = Record<string, string>;
+
 // Entities
 
 export interface FolderInfo {
   id: number | null;
   name: string;
-  parentId: number | null;
+  parent_id: number | null;
 }
 
 export interface SubfolderItem {
   id: number;
   name: string;
-  parentId: number | null;
+  parent_id: number | null;
 }
 
 export interface FileItem {
   id: number;
   name: string;
-  folderId: number;
+  folder_id: number;
   size: number;
-  contentType: string;
-  storageId: string;
-  createdAt: string;
-  updatedAt: string;
+  content_type: string;
+  storage_id: string;
+  created_at: string;
+  updated_at: string;
   tags: FileTag[];
   metadata: FileMetadata[];
 }
@@ -85,16 +99,16 @@ export interface FileMetadata {
 export interface FileRecord {
   id: number;
   name: string;
-  folderId: number;
+  folder_id: number;
   size: number;
-  contentType: string;
-  storageId: string;
-  createdAt: string;
+  content_type: string;
+  storage_id: string;
+  created_at: string;
 }
 
 export interface FolderRecord {
   id: number;
   name: string;
-  parentId: number | null;
-  createdAt: string;
+  parent_id: number | null;
+  created_at: string;
 }
