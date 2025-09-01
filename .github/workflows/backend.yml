@@ -19,6 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          brew uninstall cmake || true
           brew install boost catch2 cmake ninja
 
       - name: Build and Test
