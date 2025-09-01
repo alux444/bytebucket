@@ -3,9 +3,8 @@
 <div align="center">
   <img src="assets/logo.png" alt="ByteBucket Logo" width="200"/>
   
-  **A self-hosted file browser with a modern web interface**
+  **A self-hosted file browser with a web interface**
   
-  ![Build Status](https://github.com/username/bytebucket/workflows/Build%20and%20Test/badge.svg)
   ![License](https://img.shields.io/badge/license-MIT-blue.svg)
   ![C++](https://img.shields.io/badge/C++-17-blue.svg)
   ![React](https://img.shields.io/badge/React-18-blue.svg)
@@ -38,23 +37,6 @@ bytebucket/
 └── assets/             # Project assets (logos, etc.)
 ```
 
-## 🛠️ Tech Stack
-
-### Backend
-
-- **C++17** compatible compiler (g++, clang++)
-- **CMake** 3.15+
-- **vcpkg** package manager
-- **Boost.Beast** (HTTP server)
-- **SQLite3** (database)
-- **Catch2** (testing framework)
-
-### Frontend Dependencies
-
-- **TypeScript**
-- **Node**
-- **React**
-
 ## 📊 Current Status
 
 **🚧 Work in Progress** - ByteBucket is currently under active development.
@@ -71,7 +53,7 @@ bytebucket/
 
 ### 🚧 In Progress / TODO
 
-See [`backend/TODO.md`](backend/TODO.md) for detailed development roadmap
+See [`TODO.md`](TODO.md) for detailed development roadmap
 
 ## 🏗️ Architecture
 
@@ -79,16 +61,6 @@ See [`backend/TODO.md`](backend/TODO.md) for detailed development roadmap
 - **Frontend**: React with TypeScript, REST API client
 - **Storage**: File system blob storage with database metadata
 - **Database**: SQLite with tables for folders, files, tags, and metadata
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`./dev.sh test`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
 
 ## 📝 License
 
