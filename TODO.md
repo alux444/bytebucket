@@ -1,51 +1,18 @@
 # ByteBucket TODOS
 
-C++ self-hosted file browser using **Boost.Beast** as the HTTP library.
-
----
-
-## 🛠️ Environment
-
-- Install a C++17 (or later) compiler (e.g., g++, clang++)
-- Install [CMake](https://cmake.org/)
-- Install a C++ package manager like [vcpkg](https://github.com/microsoft/vcpkg)
-- Install Boost libraries (especially Boost.Beast) via your package manager  
-  vcpkg:
-  ```bash
-  vcpkg install boost-beast boost-system boost-thread catch2
-  vcpkg install sqlite3
-  ```
-
----
-
-## 📁 Project Structure
-
-```
-bytebucket/
-
-├── backend/            # C++ backend source code and headers
-│   ├── data/           # metadata storage (SQLite database)
-│   ├── include/        # backend header files
-│   ├── src/            # backend source code
-│   ├── storage/        # uploaded files storage (blob storage)
-│   ├── tests/          # backend tests
-│   └── CMakeLists.txt  # backend build configuration
-│
-└── frontend/           # React frontend application
-    ├── src/            # React source code
-    └── (React project files)
-
-```
-
-## 🌐 HTTP Server (Boost.Beast)
+## 🌐 HTTP Server
 
 - [x] Set up a minimal HTTP server with Boost.Beast
 - [x] Implement routing for:
   - [x] `GET /` — serve landing page or status
   - [x] `GET /health` — health check endpoint
   - [x] `POST /folder` — create folder endpoint
-  - [ ] `POST /file` — file upload handler
+  - [x] `POST /upload` — file upload handler (multipart/form-data)
   - [x] `GET /download/{file_id}` — file download handler
+  - [x] `GET /tags` — get all available tags
+  - [x] `POST /tags` — create new tag
+  - [x] `POST /files/{file_id}/tags` — add tag to file
+  - [x] `POST /files/{file_id}/metadata` — add metadata to file
 - [ ] Handle concurrent connections using `std::thread`
 - [ ] Add CORS headers for frontend integration
 
@@ -55,14 +22,13 @@ bytebucket/
 - [x] Implement `POST /folder` endpoint for creating folders
   - [x] Support root folders (no parent)
   - [x] Support nested folders (with parent_id)
-- [ ] Implement folder listing endpoints:
-  - [ ] `GET /folders` — list all root folders
-  - [ ] `GET /folders/{folder_id}` — get folder details and contents
-  - [ ] `GET /folders/{folder_id}/children` — list subfolders and files
+- [x] Implement folder listing endpoints:
+  - [x] `GET /folder` — get root folder contents (files and subfolders)
+  - [x] `GET /folder/{folder_id}` — get specific folder contents (files and subfolders)
 - [ ] Implement folder operations:
-  - [ ] `PUT /folders/{folder_id}` — rename folder
-  - [ ] `DELETE /folders/{folder_id}` — delete folder (and contents)
-  - [ ] `POST /folders/{folder_id}/move` — move folder to different parent
+  - [ ] `PUT /folder/{folder_id}` — rename folder
+  - [ ] `DELETE /folder/{folder_id}` — delete folder (and contents)
+  - [ ] `POST /folder/{folder_id}/move` — move folder to different parent
 
 ## 📤 File Upload / Download
 
@@ -70,11 +36,11 @@ bytebucket/
 - [x] Save uploaded files into `storage/` folder with unique IDs
 - [x] Generate and save file metadata (filename, size, timestamp, content_type)
 - [x] Link files to folders in database
-- [ ] Implement file upload to specific folder:
-  - [ ] `POST /folders/{folder_id}/upload` — upload file to folder
-- [ ] Serve file downloads via streaming:
-  - [ ] `GET /download/{storage_id}` — download file by storage ID
-  - [ ] Include proper content headers (filename, content-type)
+- [x] Implement file upload to specific folder:
+  - [x] `POST /upload` with optional `folder_id` parameter
+- [x] Serve file downloads via streaming:
+  - [x] `GET /download/{file_id}` — download file by file ID
+  - [x] Include proper content headers (filename, content-type)
 - [ ] File operations:
   - [ ] `PUT /files/{file_id}` — rename file
   - [ ] `DELETE /files/{file_id}` — delete file
@@ -85,15 +51,20 @@ bytebucket/
 - [x] SQLite database with tables:
   - [x] `folders` (id, name, parent_id, created_at)
   - [x] `files` (id, name, folder_id, size, content_type, storage_id, created_at, updated_at)
-  - [x] `tags` (id, name) — for future file tagging
+  - [x] `tags` (id, name) — for file tagging
   - [x] `file_tags` (file_id, tag_id) — many-to-many relationship
   - [x] `file_metadata` (file_id, key, value) — custom metadata
 - [x] Implement database operations:
   - [x] `insertFolder()` — create new folder
   - [x] `addFile()` — add file record to database
-  - [ ] `getFolderById()` — get folder details
-  - [ ] `getFoldersByParent()` — list folders by parent
-  - [ ] `getFilesByFolder()` — list files in folder
+  - [x] `getFolderById()` — get folder details
+  - [x] `getFoldersByParent()` — list folders by parent
+  - [x] `getFilesByFolder()` — list files in folder
+  - [x] `getFileById()` — get file details
+  - [x] `getAllTags()` — retrieve all tags
+  - [x] `createTag()` — create new tag
+  - [x] `addTagToFile()` — associate tag with file
+  - [x] `addMetadataToFile()` — add key-value metadata to file
   - [ ] `updateFolder()` — rename folder
   - [ ] `deleteFolder()` — remove folder and cascade
   - [ ] `updateFile()` — rename file
@@ -101,8 +72,28 @@ bytebucket/
   - [ ] `moveFile()` — change file's folder
   - [ ] `moveFolder()` — change folder's parent
 
+## 🏷️ Tags & Metadata System
+
+- [x] Implement tag management:
+  - [x] `GET /tags` — get all available tags
+  - [x] `POST /tags` — create new tag
+  - [x] `POST /files/{file_id}/tags` — add tag to file
+- [x] Implement metadata management:
+  - [x] `POST /files/{file_id}/metadata` — add custom metadata to file
+- [x] Database operations for tags and metadata:
+  - [x] `getAllTags()` — retrieve all tags
+  - [x] `createTag()` — create new tag
+  - [x] `addTagToFile()` — associate tag with file
+  - [x] `addMetadataToFile()` — add key-value metadata to file
+- [ ] Additional tag/metadata operations:
+  - [ ] `DELETE /files/{file_id}/tags/{tag_name}` — remove tag from file
+  - [ ] `PUT /files/{file_id}/metadata/{key}` — update metadata value
+  - [ ] `DELETE /files/{file_id}/metadata/{key}` — remove metadata key
+
 ## 🌍 File Browser Interface (Frontend)
 
+- [x] Basic React frontend structure with TypeScript
+- [x] API client with proper type definitions
 - [ ] Create Google Drive-like interface with:
   - [ ] **Folder Tree Navigation** — sidebar with expandable folder tree
   - [ ] **Breadcrumb Navigation** — current path display
@@ -127,7 +118,7 @@ bytebucket/
 - [ ] **Cut/Copy/Paste System**:
   - [ ] `POST /clipboard/cut` — mark items for moving
   - [ ] `POST /clipboard/copy` — mark items for copying
-  - [ ] `POST /folders/{folder_id}/paste` — paste items to folder
+  - [ ] `POST /folder/{folder_id}/paste` — paste items to folder
 - [ ] **Search & Filter**:
   - [ ] `GET /search?q={query}&folder_id={id}` — search files/folders
   - [ ] Filter by file type, date range, size
@@ -141,12 +132,15 @@ bytebucket/
 
 - [x] Integrate Catch2 testing framework
 - [x] Write tests for:
-  - [x] Database operations (folders, files)
-  - [x] Basic HTTP endpoints
-  - [ ] File upload/download endpoints
-  - [ ] Folder management endpoints
-  - [ ] File operations endpoints
-  - [ ] Error handling and edge cases
+  - [x] Database operations (folders, files, tags, metadata)
+  - [x] Basic HTTP endpoints (health, root)
+  - [x] File upload/download endpoints
+  - [x] Folder management endpoints
+  - [x] Tag and metadata endpoints
+  - [x] Error handling and edge cases
+- [x] Comprehensive test coverage (6 test cases, 69 assertions)
+- [ ] Add integration tests for frontend-backend communication
+- [ ] Add performance tests for large file operations
 
 ## 🔐 User Authentication System (Future)
 
@@ -180,8 +174,9 @@ bytebucket/
 
 ### 🟢 Easy
 
-- [ ] **File Metadata & Tagging**:
-  - [ ] Add custom tags to files
+- [x] **File Metadata & Tagging**:
+  - [x] Add custom tags to files
+  - [x] Custom key-value metadata for files
   - [ ] File description and notes
   - [ ] File favorites/bookmarks
 - [ ] **UI Improvements**:
@@ -228,3 +223,28 @@ bytebucket/
   - [ ] CDN integration for downloads
   - [ ] Database sharding for large datasets
   - [ ] Caching layer for metadata operations
+
+## 📊 API Endpoints Summary
+
+### ✅ Implemented Endpoints
+
+- `GET /` — Landing page/status
+- `GET /health` — Health check
+- `GET /folder` — Get root folder contents
+- `GET /folder/{folder_id}` — Get specific folder contents
+- `POST /folder` — Create new folder
+- `POST /upload` — Upload files (with optional folder_id)
+- `GET /download/{file_id}` — Download file
+- `GET /tags` — Get all tags
+- `POST /tags` — Create new tag
+- `POST /files/{file_id}/tags` — Add tag to file
+- `POST /files/{file_id}/metadata` — Add metadata to file
+
+### 🚧 Planned Endpoints
+
+- File operations: rename, delete, move
+- Folder operations: rename, delete, move
+- Advanced tag/metadata operations
+- Search and filtering
+- User authentication
+- File sharing
