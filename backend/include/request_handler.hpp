@@ -40,6 +40,15 @@ namespace bytebucket
   boost::beast::http::response<boost::beast::http::string_body>
   handle_get_tags(const boost::beast::http::request<boost::beast::http::string_body> &req);
 
+  boost::beast::http::response<boost::beast::http::string_body>
+  handle_post_tags(const boost::beast::http::request<boost::beast::http::string_body> &req);
+
+  boost::beast::http::response<boost::beast::http::string_body>
+  handle_post_file_tags(const boost::beast::http::request<boost::beast::http::string_body> &req);
+
+  boost::beast::http::response<boost::beast::http::string_body>
+  handle_post_file_metadata(const boost::beast::http::request<boost::beast::http::string_body> &req);
+
   // Main request handler
   boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req);
 }
