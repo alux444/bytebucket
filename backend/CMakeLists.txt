@@ -14,16 +14,10 @@ endif()
 find_package(PkgConfig REQUIRED)
 find_package(Catch2 3 QUIET)
 
-# Handle Boost with newer CMake/Boost versions
-if(POLICY CMP0167)
-    # Use new Boost target-based approach
-    find_package(Boost REQUIRED COMPONENTS system thread)
-    set(BOOST_LIBRARIES Boost::system Boost::thread)
-else()
-    # Fallback to old FindBoost module approach
-    find_package(Boost REQUIRED COMPONENTS system thread)
-    set(BOOST_LIBRARIES ${Boost_LIBRARIES})
-endif()
+# For Boost 1.89+, just find Boost and thread component
+# boost_system is header-only and not needed as a component
+find_package(Boost REQUIRED COMPONENTS thread)
+set(BOOST_LIBRARIES Boost::boost Boost::thread)
 
 # If Catch2 3 is not found, try Catch2 2
 if(NOT Catch2_FOUND)
