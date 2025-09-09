@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useHealth, useFolderNavigation, useFileUpload, useFolderCreation, useFileDownloads } from "./hooks";
 import "./App.css";
+import { formatFileSize, getFileIcon } from "./util/ui";
 
 // TODO: rewrite this in components lol
 const App: React.FC = () => {
@@ -54,26 +55,6 @@ const App: React.FC = () => {
     } catch (error) {
       console.error("Download failed:", error);
     }
-  };
-
-  // Format file size
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  // Get file icon based on content type
-  const getFileIcon = (contentType: string): string => {
-    if (contentType.startsWith("image/")) return "🖼️";
-    if (contentType.startsWith("video/")) return "🎥";
-    if (contentType.startsWith("audio/")) return "🎵";
-    if (contentType.includes("pdf")) return "📕";
-    if (contentType.includes("text")) return "📄";
-    if (contentType.includes("zip") || contentType.includes("rar")) return "📦";
-    return "📄";
   };
 
   if (healthLoading) {
@@ -156,7 +137,7 @@ const App: React.FC = () => {
             {/* Files */}
             {files.map((file) => (
               <div key={`file-${file.id}`} className="file-item file" onDoubleClick={() => handleDownload(file.id, file.name)}>
-                <div className="file-icon">{getFileIcon(file.contentType)}</div>
+                <div className="file-icon">{getFileIcon(file.content_type)}</div>
                 <div className="file-name">{file.name}</div>
                 <div className="file-info">
                   {formatFileSize(file.size)}
