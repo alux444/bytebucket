@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useHealth, useFolderNavigation, useFileUpload, useFolderCreation, useFileDownloads } from "./hooks";
 import "./App.css";
 import { formatFileSize, getFileIcon } from "./util/ui";
+import Header from "./components/Header";
 
 // TODO: rewrite this in components lol
 const App: React.FC = () => {
@@ -63,13 +64,7 @@ const App: React.FC = () => {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>🪣 ByteBucket File Explorer</h1>
-        <div className="server-status">
-          <span className={`status-indicator ${health?.status === "healthy" ? "healthy" : "unhealthy"}`}></span>
-          Server: {health?.status || "Unknown"}
-        </div>
-      </header>
+      <Header health={health} />
 
       <main className="app-main">
         {/* Navigation Breadcrumb */}
