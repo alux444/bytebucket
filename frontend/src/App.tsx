@@ -3,6 +3,7 @@ import { useHealth, useFolderNavigation, useFileUpload, useFolderCreation, useFi
 import "./App.css";
 import { formatFileSize, getFileIcon } from "./util/ui";
 import Header from "./components/Header";
+import UploadProgress from "./components/UploadProgress";
 
 // TODO: rewrite this in components lol
 const App: React.FC = () => {
@@ -79,7 +80,6 @@ const App: React.FC = () => {
           ))}
         </nav>
 
-        {/* Action Bar */}
         <div className="action-bar">
           <label htmlFor="file-upload" className="upload-button">
             📤 Upload Files
@@ -95,15 +95,7 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Upload Progress */}
-        {isUploading && (
-          <div className="upload-progress">
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
-            </div>
-            <span>Uploading... {uploadProgress}%</span>
-          </div>
-        )}
+        {isUploading && <UploadProgress uploadProgress={uploadProgress} />}
 
         {/* Error Messages */}
         {(uploadError || createError || contentsError) && (
