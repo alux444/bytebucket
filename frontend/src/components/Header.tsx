@@ -1,8 +1,10 @@
 import type { HealthResponse } from "../api";
 
-export type HeaderProps = HealthResponse | undefined;
+export interface HeaderProps {
+  health: HealthResponse | undefined;
+}
 
-const Header = ({ health }: { health: HeaderProps }) => {
+const Header = ({ health }: HeaderProps) => {
   return (
     <header className="app-header">
       <h1>🪣 ByteBucket File Explorer</h1>
