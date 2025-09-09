@@ -73,7 +73,7 @@ namespace bytebucket
     auto updated_time_t = std::chrono::system_clock::to_time_t(file.updatedAt);
 
     std::ostringstream created_ss, updated_ss;
-    created_ss << std::put_time(std::gmtime(&created_time_t), "%Y-%m-%dT%H:%M:%SZ");
+    created_ss << std::put_time(std::gmtime(&created_time_t), "%Y -%m-%dT%H:%M:%SZ");
     updated_ss << std::put_time(std::gmtime(&updated_time_t), "%Y-%m-%dT%H:%M:%SZ");
 
     json_stream << R"({"id":)" << file.id

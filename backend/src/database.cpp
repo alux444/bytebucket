@@ -467,6 +467,15 @@ namespace bytebucket
     return result;
   }
 
+  DatabaseResult<bool> Database::renameFile(int id, std::string_view name)
+  {
+    // TODO
+  }
+
+  DatabaseResult<bool> Database::moveFile(int id, int parentId)
+  {
+    // TODO
+  }
 #pragma endregion files
 
 #pragma region folders
@@ -662,6 +671,16 @@ namespace bytebucket
     result.value = true;
     result.error = DatabaseError::Success;
     return result;
+  }
+
+  DatabaseResult<bool> Database::renameFolder(int id, std::string_view name)
+  {
+    // TODO
+  }
+
+  DatabaseResult<bool> Database::moveFolder(int id, int parentId)
+  {
+    // TODO
   }
 #pragma endregion folders
 

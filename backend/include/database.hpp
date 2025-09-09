@@ -75,12 +75,16 @@ namespace bytebucket
     DatabaseResult<std::vector<FileRecord>> getFilesByFolder(int folderId) const;
     DatabaseResult<bool> updateFileTimestamp(int id);
     DatabaseResult<bool> deleteFile(int id);
+    DatabaseResult<bool> renameFile(int id, std::string_view name);
+    DatabaseResult<bool> moveFile(int id, int parentId);
 
     // folders
     DatabaseResult<int> insertFolder(std::string_view name, std::optional<int> parentId = std::nullopt);
     DatabaseResult<FolderRecord> getFolderById(int id) const;
     DatabaseResult<std::vector<FolderRecord>> getFoldersByParent(std::optional<int> parentId) const;
     DatabaseResult<bool> deleteFolder(int id);
+    DatabaseResult<bool> renameFolder(int id, std::string_view name);
+    DatabaseResult<bool> moveFolder(int id, int parentId);
 
     // tags
     DatabaseResult<int> insertTag(std::string_view name);
