@@ -467,6 +467,116 @@ namespace bytebucket
     return result;
   }
 
+  DatabaseResult<bool> Database::renameFile(int id, std::string_view name)
+  {
+    DatabaseResult<bool> result;
+    const char *sql = R"(
+      UPDATE files 
+      SET name = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare rename file statement";
+      return result;
+    }
+
+    sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()), SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      sqlite3_finalize(stmt);
+      int errorCode = sqlite3_errcode(db.get());
+      if (errorCode == SQLITE_CONSTRAINT_UNIQUE)
+      {
+        result.error = DatabaseError::UniqueConstraint;
+        result.errorMessage = "A file with this name already exists in the folder";
+      }
+      else
+      {
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Failed to rename file";
+      }
+      return result;
+    }
+
+    int changes = sqlite3_changes(db.get());
+    sqlite3_finalize(stmt);
+
+    if (changes == 0)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "File not found";
+      return result;
+    }
+
+    result.value = true;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<bool> Database::moveFile(int id, int parentId)
+  {
+    DatabaseResult<bool> result;
+    const char *sql = R"(
+      UPDATE files 
+      SET folder_id = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare move file statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, parentId);
+    sqlite3_bind_int(stmt, 2, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      sqlite3_finalize(stmt);
+      int errorCode = sqlite3_errcode(db.get());
+      if (errorCode == SQLITE_CONSTRAINT_FOREIGNKEY)
+      {
+        result.error = DatabaseError::ForeignKeyConstraint;
+        result.errorMessage = "Target folder does not exist or file does not exist";
+      }
+      else if (errorCode == SQLITE_CONSTRAINT_UNIQUE)
+      {
+        result.error = DatabaseError::UniqueConstraint;
+        result.errorMessage = "A file with this name already exists in the target folder";
+      }
+      else
+      {
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Failed to move file";
+      }
+      return result;
+    }
+
+    int changes = sqlite3_changes(db.get());
+    sqlite3_finalize(stmt);
+
+    if (changes == 0)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "File not found";
+      return result;
+    }
+
+    result.value = true;
+    result.error = DatabaseError::Success;
+    return result;
+  }
 #pragma endregion files
 
 #pragma region folders
@@ -656,6 +766,172 @@ namespace bytebucket
       result.value = false;
       result.error = DatabaseError::UnknownError;
       result.errorMessage = "DELETE action resulted in no changes";
+      return result;
+    }
+
+    result.value = true;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<bool> Database::renameFolder(int id, std::string_view name)
+  {
+    DatabaseResult<bool> result;
+    const char *sql = R"(
+      UPDATE folders 
+      SET name = ? 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare rename folder statement";
+      return result;
+    }
+
+    sqlite3_bind_text(stmt, 1, name.data(), static_cast<int>(name.size()), SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      sqlite3_finalize(stmt);
+      int errorCode = sqlite3_errcode(db.get());
+      if (errorCode == SQLITE_CONSTRAINT_UNIQUE)
+      {
+        result.error = DatabaseError::UniqueConstraint;
+        result.errorMessage = "A folder with this name already exists in the parent directory";
+      }
+      else
+      {
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Failed to rename folder";
+      }
+      return result;
+    }
+
+    int changes = sqlite3_changes(db.get());
+    sqlite3_finalize(stmt);
+
+    if (changes == 0)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Folder not found";
+      return result;
+    }
+
+    result.value = true;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
+  DatabaseResult<bool> Database::moveFolder(int id, int parentId)
+  {
+    DatabaseResult<bool> result;
+
+    // First check if we're trying to move a folder into itself or one of its descendants
+    // This would create a cycle in the folder hierarchy
+    if (id == parentId)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Cannot move folder into itself";
+      return result;
+    }
+
+    // TODO: see if theres a way to handle 1000 nested levels
+    // Check if the target parent is a descendant of the folder we're moving
+    const char *checkSql = R"(
+      WITH RECURSIVE folder_tree(id, parent_id, depth) AS (
+        SELECT id, parent_id, 0 FROM folders WHERE id = ?
+        UNION ALL
+        SELECT f.id, f.parent_id, ft.depth + 1 
+        FROM folders f
+        JOIN folder_tree ft ON f.parent_id = ft.id
+        WHERE ft.depth < 1000
+      )
+      SELECT COUNT(*) FROM folder_tree WHERE id = ?
+    )";
+    sqlite3_stmt *checkStmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), checkSql, -1, SQLITE_PREPARE_PERSISTENT, &checkStmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare cycle check statement";
+      return result;
+    }
+
+    sqlite3_bind_int(checkStmt, 1, id);
+    sqlite3_bind_int(checkStmt, 2, parentId);
+
+    int returnCode = sqlite3_step(checkStmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(checkStmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to check for circular reference";
+      return result;
+    }
+
+    int count = sqlite3_column_int(checkStmt, 0);
+    sqlite3_finalize(checkStmt);
+
+    if (count > 0)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Cannot move folder into one of its descendants";
+      return result;
+    }
+
+    // Now perform the actual move
+    const char *sql = R"(
+      UPDATE folders 
+      SET parent_id = ? 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare move folder statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, parentId);
+    sqlite3_bind_int(stmt, 2, id);
+
+    returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_DONE)
+    {
+      sqlite3_finalize(stmt);
+      int errorCode = sqlite3_errcode(db.get());
+      if (errorCode == SQLITE_CONSTRAINT_FOREIGNKEY)
+      {
+        result.error = DatabaseError::ForeignKeyConstraint;
+        result.errorMessage = "Target parent folder does not exist or folder does not exist";
+      }
+      else if (errorCode == SQLITE_CONSTRAINT_UNIQUE)
+      {
+        result.error = DatabaseError::UniqueConstraint;
+        result.errorMessage = "A folder with this name already exists in the target parent directory";
+      }
+      else
+      {
+        result.error = DatabaseError::UnknownError;
+        result.errorMessage = "Failed to move folder";
+      }
+      return result;
+    }
+
+    int changes = sqlite3_changes(db.get());
+    sqlite3_finalize(stmt);
+
+    if (changes == 0)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Folder not found";
       return result;
     }
 
