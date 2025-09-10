@@ -65,9 +65,9 @@
   - [x] `createTag()` — create new tag
   - [x] `addTagToFile()` — associate tag with file
   - [x] `addMetadataToFile()` — add key-value metadata to file
-  - [ ] `updateFolder()` — rename folder
+  - [ ] `renameFolder()` — rename folder
   - [ ] `deleteFolder()` — remove folder and cascade
-  - [ ] `updateFile()` — rename file
+  - [ ] `renameFile()` — rename file
   - [ ] `deleteFile()` — remove file record
   - [ ] `moveFile()` — change file's folder
   - [ ] `moveFolder()` — change folder's parent
