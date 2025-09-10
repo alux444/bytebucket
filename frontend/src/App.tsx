@@ -1,24 +1,36 @@
 import React, { useState } from "react";
 import { useHealth, useFolderNavigation, useFileUpload, useFolderCreation, useFileDownloads } from "./hooks";
 import "./App.css";
+import Header from "./components/Header";
+import UploadProgress from "./components/UploadProgress";
+import NavigationBreadcrumb from "./components/NavigationBreadcrumb";
+import ActionBar from "./components/ActionBar";
+import ErrorMessages from "./components/ErrorMessages";
+import FileExplorerGrid from "./components/file-explorer/FileExplorerGrid";
+import CreateFolderModal from "./components/modals/CreateFolderModal";
 
-// TODO: rewrite this in components lol
 const App: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [folderName, setFolderName] = useState("");
 
-  // Health check
   const { data: health, isLoading: healthLoading } = useHealth();
 
-  // Folder navigation using real API
-  const { currentFolderId, navigationPath, subfolders, files, isLoading: contentsLoading, error: contentsError, navigateToFolder, navigateToIndexInPath, refetch } = useFolderNavigation();
+  const { 
+    currentFolderId, 
+    navigationPath, 
+    subfolders, 
+    files, 
+    isLoading: contentsLoading, 
+    error: contentsError, 
+    navigateToFolder, 
+    navigateToIndexInPath, 
+    refetch 
+  } = useFolderNavigation();
 
-  // File operations
   const { uploadFiles, uploadProgress, isUploading, error: uploadError } = useFileUpload();
   const { createFolder, validationError, isLoading: creatingFolder, error: createError } = useFolderCreation();
   const { downloadFile, isDownloading } = useFileDownloads();
 
-  // Handle file upload
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = event.target.files;
     if (!selectedFiles || selectedFiles.length === 0) return;
@@ -31,7 +43,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle folder creation
   const handleCreateFolder = async () => {
     if (!folderName.trim()) return;
 
@@ -47,7 +58,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle file download
   const handleDownload = async (fileId: number, filename: string) => {
     try {
       await downloadFile(fileId, filename);
@@ -56,150 +66,56 @@ const App: React.FC = () => {
     }
   };
 
-  // Format file size
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  // Get file icon based on content type
-  const getFileIcon = (contentType: string): string => {
-    if (contentType.startsWith("image/")) return "🖼️";
-    if (contentType.startsWith("video/")) return "🎥";
-    if (contentType.startsWith("audio/")) return "🎵";
-    if (contentType.includes("pdf")) return "📕";
-    if (contentType.includes("text")) return "📄";
-    if (contentType.includes("zip") || contentType.includes("rar")) return "📦";
-    return "📄";
-  };
-
   if (healthLoading) {
     return <div className="loading">Loading ByteBucket...</div>;
   }
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>🪣 ByteBucket File Explorer</h1>
-        <div className="server-status">
-          <span className={`status-indicator ${health?.status === "healthy" ? "healthy" : "unhealthy"}`}></span>
-          Server: {health?.status || "Unknown"}
-        </div>
-      </header>
+      <Header health={health} />
 
       <main className="app-main">
-        {/* Navigation Breadcrumb */}
-        <nav className="breadcrumb">
-          {navigationPath.map((item, index) => (
-            <span key={`${item.id}-${index}`}>
-              <button className="breadcrumb-item" onClick={() => navigateToIndexInPath(index)} disabled={index === navigationPath.length - 1}>
-                {item.name}
-              </button>
-              {index < navigationPath.length - 1 && <span className="breadcrumb-separator">›</span>}
-            </span>
-          ))}
-        </nav>
+        <NavigationBreadcrumb 
+          navigationPath={navigationPath} 
+          navigateToIndexInPath={navigateToIndexInPath} 
+        />
 
-        {/* Action Bar */}
-        <div className="action-bar">
-          <label htmlFor="file-upload" className="upload-button">
-            📤 Upload Files
-            <input id="file-upload" type="file" multiple onChange={handleFileUpload} style={{ display: "none" }} disabled={isUploading} />
-          </label>
+        <ActionBar
+          handleFileUpload={handleFileUpload}
+          setDisplayCreateModal={setShowCreateModal}
+          refetch={refetch}
+          isCreatingFolder={creatingFolder}
+          isUploadingFile={isUploading}
+          isContentsLoading={contentsLoading}
+        />
 
-          <button onClick={() => setShowCreateModal(true)} className="create-folder-button" disabled={creatingFolder}>
-            📁 New Folder
-          </button>
+        {isUploading && <UploadProgress uploadProgress={uploadProgress} />}
 
-          <button onClick={() => refetch()} className="refresh-button" disabled={contentsLoading}>
-            🔄 Refresh
-          </button>
-        </div>
+        <ErrorMessages 
+          uploadError={uploadError}
+          createError={createError}
+          contentsError={contentsError}
+        />
 
-        {/* Upload Progress */}
-        {isUploading && (
-          <div className="upload-progress">
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
-            </div>
-            <span>Uploading... {uploadProgress}%</span>
-          </div>
-        )}
-
-        {/* Error Messages */}
-        {(uploadError || createError || contentsError) && (
-          <div className="error-message">
-            {uploadError && <p>Upload error: {uploadError.message}</p>}
-            {createError && <p>Create folder error: {createError.message}</p>}
-            {contentsError && <p>Failed to load folder contents: {contentsError.message}</p>}
-          </div>
-        )}
-
-        {/* Loading State */}
-        {contentsLoading && <div className="loading">Loading folder contents...</div>}
-
-        {/* File Explorer Grid */}
-        {!contentsLoading && (
-          <div className="file-grid">
-            {/* Subfolders */}
-            {subfolders.map((folder) => (
-              <div key={`folder-${folder.id}`} className="file-item folder" onDoubleClick={() => navigateToFolder(folder.id, folder.name)}>
-                <div className="file-icon">📁</div>
-                <div className="file-name">{folder.name}</div>
-                <div className="file-info">Folder</div>
-              </div>
-            ))}
-
-            {/* Files */}
-            {files.map((file) => (
-              <div key={`file-${file.id}`} className="file-item file" onDoubleClick={() => handleDownload(file.id, file.name)}>
-                <div className="file-icon">{getFileIcon(file.contentType)}</div>
-                <div className="file-name">{file.name}</div>
-                <div className="file-info">
-                  {formatFileSize(file.size)}
-                  {isDownloading(file.id) && <span className="downloading"> - Downloading...</span>}
-                </div>
-              </div>
-            ))}
-
-            {/* Empty State */}
-            {subfolders.length === 0 && files.length === 0 && (
-              <div className="empty-state">
-                <p>This folder is empty</p>
-                <p>Upload files or create folders to get started</p>
-              </div>
-            )}
-          </div>
-        )}
+        <FileExplorerGrid
+          subfolders={subfolders}
+          files={files}
+          isLoading={contentsLoading}
+          navigateToFolder={navigateToFolder}
+          handleDownload={handleDownload}
+          isDownloading={isDownloading}
+        />
       </main>
 
-      {/* Create Folder Modal */}
-      {showCreateModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h3>Create New Folder</h3>
-            <input type="text" value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="Folder name" onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()} autoFocus />
-            {validationError && <div className="validation-error">{validationError}</div>}
-            <div className="modal-actions">
-              <button onClick={handleCreateFolder} disabled={!folderName.trim() || creatingFolder}>
-                {creatingFolder ? "Creating..." : "Create"}
-              </button>
-              <button
-                onClick={() => {
-                  setShowCreateModal(false);
-                  setFolderName("");
-                }}
-                disabled={creatingFolder}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CreateFolderModal
+        showCreateModal={showCreateModal}
+        folderName={folderName}
+        setFolderName={setFolderName}
+        handleCreateFolder={handleCreateFolder}
+        setShowCreateModal={setShowCreateModal}
+        validationError={validationError || undefined}
+        isCreatingFolder={creatingFolder}
+      />
     </div>
   );
 };
