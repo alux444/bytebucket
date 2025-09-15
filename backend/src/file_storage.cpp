@@ -116,6 +116,39 @@ namespace bytebucket
     }
   }
 
+  bool FileStorage::deleteFile(const std::string &file_id)
+  {
+    if (!fileExists(file_id))
+      return false;
+
+    std::filesystem::path storage_path = getStorageDir();
+    std::filesystem::path file_path = storage_path / file_id;
+    std::filesystem::path metadata_path = storage_path / (file_id + ".meta");
+
+    try
+    {
+      bool file_deleted = true;
+      bool metadata_deleted = true;
+
+      if (std::filesystem::exists(file_path))
+      {
+        file_deleted = std::filesystem::remove(file_path);
+      }
+
+      if (std::filesystem::exists(metadata_path))
+      {
+        metadata_deleted = std::filesystem::remove(metadata_path);
+      }
+
+      return file_deleted && metadata_deleted;
+    }
+    catch (const std::exception &e)
+    {
+      std::cerr << "Error deleting file: " << e.what() << std::endl;
+      return false;
+    }
+  }
+
   std::string FileStorage::generateFileId()
   {
     // Generate a unique ID using timestamp + random number

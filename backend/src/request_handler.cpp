@@ -17,7 +17,7 @@ namespace bytebucket
   {
     // TODO: specific frontend access control urls
     res.set(boost::beast::http::field::access_control_allow_origin, "*");
-    res.set(boost::beast::http::field::access_control_allow_methods, "GET, POST, OPTIONS");
+    res.set(boost::beast::http::field::access_control_allow_methods, "GET, POST, DELETE, OPTIONS");
     res.set(boost::beast::http::field::access_control_allow_headers, "Content-Type");
   }
 
@@ -795,6 +795,70 @@ namespace bytebucket
                                   file_record.contentType, file_record.name, file_content.value());
   }
 
+  boost::beast::http::response<boost::beast::http::string_body>
+  handle_delete_file(const boost::beast::http::request<boost::beast::http::string_body> &req)
+  {
+    std::string target = std::string(req.target());
+    
+    // /files/{fileId}
+    if (target.length() <= 7 || target.substr(0, 7) != "/files/")
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid file endpoint");
+    }
+
+    std::string file_id_str = target.substr(7); // Remove "/files/"
+    if (file_id_str.empty())
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "File ID is required");
+    }
+
+    int file_id;
+    try
+    {
+      file_id = std::stoi(file_id_str);
+    }
+    catch (...)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid file ID format");
+    }
+
+    auto db = Database::create();
+    if (!db)
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Database connection failed");
+    }
+
+    auto db_result = db->getFileById(file_id);
+    if (!db_result.success() || !db_result.value.has_value())
+    {
+      return create_error_response(boost::beast::http::status::not_found, req.version(),
+                                   "File not found");
+    }
+
+    const FileRecord &file_record = db_result.value.value();
+    bool storage_deleted = FileStorage::deleteFile(file_record.storageId);
+    if (!storage_deleted)
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to delete file from storage");
+    }
+
+    auto delete_result = db->deleteFile(file_id);
+    if (!delete_result.success() || !delete_result.value.has_value() || !delete_result.value.value())
+    {
+      // TODO: make this case not reachable (existing in db but not in storage)
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to delete file from database");
+    }
+
+    return create_success_response(boost::beast::http::status::ok, req.version(),
+                                   "application/json", R"({"message":"File deleted successfully"})");
+  }
+
   boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req)
   {
     // Handle OPTIONS requests for CORS preflight
@@ -818,10 +882,22 @@ namespace bytebucket
     // POST /folder
     if (req.method() == boost::beast::http::verb::post && req.target() == "/folder")
       return handle_post_folder(req);
+    
+    // DELETE /folder/{folderId}
 
+    // PATCH /folder/{folderId}/move
+
+    // TODO: maybe rename this to /files?
     // POST /upload
     if (req.method() == boost::beast::http::verb::post && req.target() == "/upload")
       return handle_post_upload(req);
+
+    // DELETE /files/{fileId}
+    if (req.method() == boost::beast::http::verb::delete_ &&
+        req.target().length() > 7 && std::string(req.target()).substr(0, 7) == "/files/")
+      return handle_delete_file(req);
+
+    // PATCH /files/{fileId}/move
 
     // GET /download/{id}
     if (req.method() == boost::beast::http::verb::get &&
@@ -842,11 +918,15 @@ namespace bytebucket
         std::string(req.target()).find("/tags") != std::string::npos)
       return handle_post_file_tags(req);
 
+    // DELETE /files/{fileId}/tags/{tagId} - remove tag from file
+
     // POST /files/{fileId}/metadata - add metadata to file
     if (req.method() == boost::beast::http::verb::post &&
         req.target().length() > 7 && std::string(req.target()).substr(0, 7) == "/files/" &&
         std::string(req.target()).find("/metadata") != std::string::npos)
       return handle_post_file_metadata(req);
+    
+    // DELETE /files/{fileId}/metadata/{key} - remove metadata from file
 
     // 404 Not Found
     return create_success_response(boost::beast::http::status::not_found, req.version(),

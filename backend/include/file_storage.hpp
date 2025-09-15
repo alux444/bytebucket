@@ -31,6 +31,9 @@ namespace bytebucket
     // Read file content by ID
     static std::optional<std::vector<char>> readFile(const std::string &file_id);
 
+    // Delete file by ID (removes both content and metadata files)
+    static bool deleteFile(const std::string &file_id);
+
     // Generate unique file ID
     static std::string generateFileId();
 
