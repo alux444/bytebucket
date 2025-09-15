@@ -818,10 +818,19 @@ namespace bytebucket
     // POST /folder
     if (req.method() == boost::beast::http::verb::post && req.target() == "/folder")
       return handle_post_folder(req);
+    
+    // DELETE /folder/{folderId}
 
+    // PATCH /folder/{folderId}/move
+
+    // TODO: maybe rename this to /files?
     // POST /upload
     if (req.method() == boost::beast::http::verb::post && req.target() == "/upload")
       return handle_post_upload(req);
+
+    // DELETE /files/{fileId}
+
+    // PATCH /files/{fileId}/move
 
     // GET /download/{id}
     if (req.method() == boost::beast::http::verb::get &&
@@ -842,11 +851,15 @@ namespace bytebucket
         std::string(req.target()).find("/tags") != std::string::npos)
       return handle_post_file_tags(req);
 
+    // DELETE /files/{fileId}/tags/{tagId} - remove tag from file
+
     // POST /files/{fileId}/metadata - add metadata to file
     if (req.method() == boost::beast::http::verb::post &&
         req.target().length() > 7 && std::string(req.target()).substr(0, 7) == "/files/" &&
         std::string(req.target()).find("/metadata") != std::string::npos)
       return handle_post_file_metadata(req);
+    
+    // DELETE /files/{fileId}/metadata/{key} - remove metadata from file
 
     // 404 Not Found
     return create_success_response(boost::beast::http::status::not_found, req.version(),
