@@ -960,7 +960,7 @@ namespace bytebucket
   handle_patch_file_move(const boost::beast::http::request<boost::beast::http::string_body> &req)
   {
     std::string target = std::string(req.target());
-    
+
     // Extract file ID from /files/{fileId}/move
     if (target.length() <= 12 || target.substr(0, 7) != "/files/" || target.substr(target.length() - 5) != "/move")
     {
@@ -968,8 +968,7 @@ namespace bytebucket
                                    "Invalid file move endpoint");
     }
 
-    std::string file_id_str = target.substr(7, target.length() - 12); // Remove "/files/" prefix and "/move" suffix
-    
+    std::string file_id_str = target.substr(7, target.length() - 12); // Remove "/files/" prefix and "/move"
     if (file_id_str.empty())
     {
       return create_error_response(boost::beast::http::status::bad_request, req.version(),
@@ -987,7 +986,6 @@ namespace bytebucket
                                    "Invalid file ID format");
     }
 
-    // Validate Content-Type
     auto content_type_it = req.find(boost::beast::http::field::content_type);
     if (content_type_it == req.end() ||
         content_type_it->value().find("application/json") == std::string::npos)
@@ -1009,7 +1007,7 @@ namespace bytebucket
     size_t colon_pos = body.find(":", folder_pos);
     size_t number_start = body.find_first_of("0123456789", colon_pos + 1);
     size_t number_end = body.find_first_not_of("0123456789", number_start);
-    
+
     if (colon_pos == std::string::npos || number_start == std::string::npos)
     {
       return create_error_response(boost::beast::http::status::bad_request, req.version(),
