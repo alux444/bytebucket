@@ -1044,6 +1044,50 @@ namespace bytebucket
     return result;
   }
 
+  DatabaseResult<std::string> Database::getTagById(int id) const
+  {
+    DatabaseResult<std::string> result;
+
+    const char *sql = R"(
+      SELECT name 
+      FROM tags 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare get tag by id statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Tag not found";
+      return result;
+    }
+
+    const char *name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+    if (name)
+    {
+      result.value = std::string(name);
+    }
+    else
+    {
+      result.value = std::string();
+    }
+
+    sqlite3_finalize(stmt);
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
   DatabaseResult<bool> Database::addFileTag(int fileId, int tagId)
   {
     DatabaseResult<bool> result;
@@ -1358,6 +1402,57 @@ namespace bytebucket
     result.error = DatabaseError::Success;
     return result;
   }
+
+  DatabaseResult<bool> Database::removeFileMetadata(int fileId, std::string_view key)
+  {
+    DatabaseResult<bool> result;
+
+    if (key.empty())
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Metadata key cannot be empty";
+      return result;
+    }
+
+    const char *sql = R"(
+      DELETE FROM file_metadata 
+      WHERE file_id = ? AND key = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare remove file metadata statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, fileId);
+    sqlite3_bind_text(stmt, 2, key.data(), static_cast<int>(key.size()), SQLITE_STATIC);
+
+    int returnCode = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (returnCode != SQLITE_DONE)
+    {
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Failed to execute remove file metadata query";
+      return result;
+    }
+
+    if (sqlite3_changes(db.get()) == 0)
+    {
+      result.value = false;
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "No metadata found with the specified key for this file";
+      return result;
+    }
+
+    result.value = true;
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
 #pragma endregion metadata
 
 }
