@@ -1056,6 +1056,85 @@ namespace bytebucket
                                    "application/json", R"({"message":"File moved successfully"})");
   }
 
+  boost::beast::http::response<boost::beast::http::string_body>
+  handle_delete_file_tag(const boost::beast::http::request<boost::beast::http::string_body> &req)
+  {
+    std::string target = std::string(req.target());
+    
+    // Extract file ID and tag ID from /files/{fileId}/tags/{tagId}
+    if (target.length() <= 13 || target.substr(0, 7) != "/files/")
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid file tag endpoint");
+    }
+
+    // Find the position of "/tags/"
+    size_t tags_pos = target.find("/tags/");
+    if (tags_pos == std::string::npos || tags_pos <= 7)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid file tag endpoint format");
+    }
+
+    // Extract file ID (between "/files/" and "/tags/")
+    std::string file_id_str = target.substr(7, tags_pos - 7);
+    
+    // Extract tag ID (after "/tags/")
+    std::string tag_id_str = target.substr(tags_pos + 6);
+    
+    if (file_id_str.empty() || tag_id_str.empty())
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Both file ID and tag ID are required");
+    }
+
+    int file_id, tag_id;
+    try
+    {
+      file_id = std::stoi(file_id_str);
+      tag_id = std::stoi(tag_id_str);
+    }
+    catch (...)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid file ID or tag ID format");
+    }
+
+    auto db = Database::create();
+    if (!db)
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Database connection failed");
+    }
+
+    // First check if the file exists
+    auto file_result = db->getFileById(file_id);
+    if (!file_result.success() || !file_result.value.has_value())
+    {
+      return create_error_response(boost::beast::http::status::not_found, req.version(),
+                                   "File not found");
+    }
+
+    // Check if the tag exists
+    auto tag_result = db->getTagById(tag_id);
+    if (!tag_result.success() || !tag_result.value.has_value())
+    {
+      return create_error_response(boost::beast::http::status::not_found, req.version(),
+                                   "Tag not found");
+    }
+
+    // Remove the tag from the file
+    auto remove_result = db->removeFileTag(file_id, tag_id);
+    if (!remove_result.success() || !remove_result.value.has_value() || !remove_result.value.value())
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   remove_result.errorMessage.empty() ? "Failed to remove tag from file" : remove_result.errorMessage);
+    }
+
+    return create_success_response(boost::beast::http::status::ok, req.version(),
+                                   "application/json", R"({"message":"Tag removed from file successfully"})");
+  }
+
   boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req)
   {
     // Handle OPTIONS requests for CORS preflight
@@ -1123,6 +1202,10 @@ namespace bytebucket
       return handle_post_file_tags(req);
 
     // DELETE /files/{fileId}/tags/{tagId} - remove tag from file
+    if (req.method() == boost::beast::http::verb::delete_ &&
+        req.target().length() > 13 && std::string(req.target()).substr(0, 7) == "/files/" &&
+        std::string(req.target()).find("/tags/") != std::string::npos)
+      return handle_delete_file_tag(req);
 
     // POST /files/{fileId}/metadata - add metadata to file
     if (req.method() == boost::beast::http::verb::post &&

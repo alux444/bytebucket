@@ -50,6 +50,9 @@ namespace bytebucket
   handle_patch_folder_move(const boost::beast::http::request<boost::beast::http::string_body> &req);
 
   boost::beast::http::response<boost::beast::http::string_body>
+  handle_delete_file_tag(const boost::beast::http::request<boost::beast::http::string_body> &req);
+
+  boost::beast::http::response<boost::beast::http::string_body>
   handle_get_tags(const boost::beast::http::request<boost::beast::http::string_body> &req);
 
   boost::beast::http::response<boost::beast::http::string_body>

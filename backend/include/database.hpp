@@ -89,6 +89,7 @@ namespace bytebucket
     // tags
     DatabaseResult<int> insertTag(std::string_view name);
     DatabaseResult<int> getTagByName(std::string_view name) const;
+    DatabaseResult<std::string> getTagById(int id) const;
     DatabaseResult<std::vector<std::string>> getAllTags() const;
     DatabaseResult<bool> addFileTag(int fileId, int tagId);
     DatabaseResult<bool> removeFileTag(int fileId, int tagId);

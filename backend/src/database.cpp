@@ -1044,6 +1044,50 @@ namespace bytebucket
     return result;
   }
 
+  DatabaseResult<std::string> Database::getTagById(int id) const
+  {
+    DatabaseResult<std::string> result;
+
+    const char *sql = R"(
+      SELECT name 
+      FROM tags 
+      WHERE id = ?
+    )";
+    sqlite3_stmt *stmt = nullptr;
+
+    if (sqlite3_prepare_v3(db.get(), sql, -1, SQLITE_PREPARE_PERSISTENT, &stmt, nullptr) != SQLITE_OK)
+    {
+      result.error = DatabaseError::PrepareStatementFailed;
+      result.errorMessage = "Failed to prepare get tag by id statement";
+      return result;
+    }
+
+    sqlite3_bind_int(stmt, 1, id);
+
+    int returnCode = sqlite3_step(stmt);
+    if (returnCode != SQLITE_ROW)
+    {
+      sqlite3_finalize(stmt);
+      result.error = DatabaseError::UnknownError;
+      result.errorMessage = "Tag not found";
+      return result;
+    }
+
+    const char *name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+    if (name)
+    {
+      result.value = std::string(name);
+    }
+    else
+    {
+      result.value = std::string();
+    }
+
+    sqlite3_finalize(stmt);
+    result.error = DatabaseError::Success;
+    return result;
+  }
+
   DatabaseResult<bool> Database::addFileTag(int fileId, int tagId)
   {
     DatabaseResult<bool> result;
