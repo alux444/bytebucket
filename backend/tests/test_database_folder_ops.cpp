@@ -171,10 +171,10 @@ TEST_CASE("Database folder operations edge cases", "[database][folders][edge]")
       REQUIRE(result.success());
     }
 
-    // Verify all can be retrieved
+    // Verify all can be retrieved (100 created + 1 automatic root = 101)
     auto root_folders_result = test_db->getFoldersByParent(std::nullopt);
     REQUIRE(root_folders_result.success());
-    REQUIRE(root_folders_result.value.value().size() == 100);
+    REQUIRE(root_folders_result.value.value().size() == 101);
   }
 
   SECTION("Insert deeply nested folder structure")
@@ -191,11 +191,11 @@ TEST_CASE("Database folder operations edge cases", "[database][folders][edge]")
       current_parent = result.value;
     }
 
-    // Should have exactly 1 root folder
     auto root_folders_result = test_db->getFoldersByParent(std::nullopt);
     REQUIRE(root_folders_result.success());
     auto root_folders = root_folders_result.value.value();
-    REQUIRE(root_folders.size() == 1);
+    // 2 because we auto make one
+    REQUIRE(root_folders.size() == 2);
     REQUIRE(root_folders[0].name == "level_0");
   }
 
@@ -211,10 +211,10 @@ TEST_CASE("Database folder operations edge cases", "[database][folders][edge]")
       folder_ids.push_back(result.value.value());
     }
 
-    // Verify all exist
+    // Verify all exist (1000 created + 1 automatic root = 1001)
     auto root_folders_result = test_db->getFoldersByParent(std::nullopt);
     REQUIRE(root_folders_result.success());
-    REQUIRE(root_folders_result.value.value().size() == 1000);
+    REQUIRE(root_folders_result.value.value().size() == 1001);
 
     // Delete every other folder
     for (size_t i = 0; i < folder_ids.size(); i += 2)
@@ -227,7 +227,7 @@ TEST_CASE("Database folder operations edge cases", "[database][folders][edge]")
     // Should have 500 folders remaining
     auto remaining_folders_result = test_db->getFoldersByParent(std::nullopt);
     REQUIRE(remaining_folders_result.success());
-    REQUIRE(remaining_folders_result.value.value().size() == 500);
+    REQUIRE(remaining_folders_result.value.value().size() == 501);
   }
 
   SECTION("Test specific error types")
@@ -344,7 +344,7 @@ TEST_CASE("Database folder operations - Delete with Cascade", "[database][folder
     REQUIRE(level2_folder1_children_before.success());
     REQUIRE(level2_folder2_children_before.success());
 
-    REQUIRE(all_root_folders_before.value.value().size() == 1);        // Only our root folder
+    REQUIRE(all_root_folders_before.value.value().size() == 2);        // Test root folder + automatic root folder
     REQUIRE(level1_children_before.value.value().size() == 2);         // Level1_Folder1 and Level1_Folder2
     REQUIRE(level2_folder1_children_before.value.value().size() == 2); // Level2_Folder1 and Level2_Folder2
     REQUIRE(level2_folder2_children_before.value.value().size() == 1); // Level2_Folder3
@@ -371,10 +371,9 @@ TEST_CASE("Database folder operations - Delete with Cascade", "[database][folder
     REQUIRE_FALSE(test_db->getFileById(file5.value()).success());
     REQUIRE_FALSE(test_db->getFileById(file6.value()).success());
 
-    // No folders should remain
     auto all_root_folders_after = test_db->getFoldersByParent(std::nullopt);
     REQUIRE(all_root_folders_after.success());
-    REQUIRE(all_root_folders_after.value.value().empty());
+    REQUIRE(all_root_folders_after.value.value().size() == 1);
 
     // No child folders should remain
     auto level1_children_after = test_db->getFoldersByParent(root_id.value());
@@ -444,10 +443,10 @@ TEST_CASE("Database folder operations - Delete with Cascade", "[database][folder
       REQUIRE_FALSE(file_result.success());
     }
 
-    // No root folders should remain
+    // Only the automatic root folder should remain
     auto remaining_folders_result = test_db->getFoldersByParent(std::nullopt);
     REQUIRE(remaining_folders_result.success());
-    REQUIRE(remaining_folders_result.value.value().empty());
+    REQUIRE(remaining_folders_result.value.value().size() == 1);
   }
 
   SECTION("Delete folder with files but no subfolders")
