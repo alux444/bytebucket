@@ -4,6 +4,7 @@
 #include "database.hpp"
 #include <boost/beast/http.hpp>
 #include <string>
+#include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <ctime>
@@ -799,7 +800,7 @@ namespace bytebucket
   handle_delete_file(const boost::beast::http::request<boost::beast::http::string_body> &req)
   {
     std::string target = std::string(req.target());
-    
+
     // /files/{fileId}
     if (target.length() <= 7 || target.substr(0, 7) != "/files/")
     {
@@ -859,6 +860,102 @@ namespace bytebucket
                                    "application/json", R"({"message":"File deleted successfully"})");
   }
 
+  boost::beast::http::response<boost::beast::http::string_body>
+  handle_delete_folder(const boost::beast::http::request<boost::beast::http::string_body> &req)
+  {
+    std::string target = std::string(req.target());
+
+    // Extract folder ID from /folder/{folderId}
+    if (target.length() <= 8 || target.substr(0, 8) != "/folder/")
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid folder endpoint");
+    }
+
+    std::string folder_id_str = target.substr(8); // Remove "/folder/"
+    if (folder_id_str.empty())
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Folder ID is required");
+    }
+
+    int folder_id;
+    try
+    {
+      folder_id = std::stoi(folder_id_str);
+    }
+    catch (...)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid folder ID format");
+    }
+
+    auto db = Database::create();
+    if (!db)
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Database connection failed");
+    }
+
+    auto folder_result = db->getFolderById(folder_id);
+    if (!folder_result.success() || !folder_result.value.has_value())
+    {
+      return create_error_response(boost::beast::http::status::not_found, req.version(),
+                                   "Folder not found");
+    }
+
+    // Helper function to recursively delete all files in folder and subfolders from storage
+    std::function<bool(int)> deleteFilesFromStorageRecursively = [&](int folderId) -> bool
+    {
+      // Get all files in this folder
+      auto files_result = db->getFilesByFolder(folderId);
+      if (files_result.success() && files_result.value.has_value())
+      {
+        for (const auto &file_record : files_result.value.value())
+        {
+          if (!FileStorage::deleteFile(file_record.storageId))
+          {
+            std::cerr << "Warning: Failed to delete file " << file_record.storageId << " from storage" << std::endl;
+            // Continue with other files
+          }
+        }
+      }
+
+      // Get all subfolders and recursively delete their files
+      auto subfolders_result = db->getFoldersByParent(folderId);
+      if (subfolders_result.success() && subfolders_result.value.has_value())
+      {
+        for (const auto &subfolder : subfolders_result.value.value())
+        {
+          if (!deleteFilesFromStorageRecursively(subfolder.id))
+          {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    };
+
+    // Delete all files from storage first (before database cascade deletion)
+    if (!deleteFilesFromStorageRecursively(folder_id))
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to delete some files from storage");
+    }
+
+    // Then delete the folder from database (this will cascade to all subfolders and files)
+    auto delete_result = db->deleteFolder(folder_id);
+    if (!delete_result.success() || !delete_result.value.has_value() || !delete_result.value.value())
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Failed to delete folder from database");
+    }
+
+    return create_success_response(boost::beast::http::status::ok, req.version(),
+                                   "application/json", R"({"message":"Folder deleted successfully"})");
+  }
+
   boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req)
   {
     // Handle OPTIONS requests for CORS preflight
@@ -882,8 +979,11 @@ namespace bytebucket
     // POST /folder
     if (req.method() == boost::beast::http::verb::post && req.target() == "/folder")
       return handle_post_folder(req);
-    
+
     // DELETE /folder/{folderId}
+    if (req.method() == boost::beast::http::verb::delete_ &&
+        req.target().length() > 8 && std::string(req.target()).substr(0, 8) == "/folder/")
+      return handle_delete_folder(req);
 
     // PATCH /folder/{folderId}/move
 
@@ -925,7 +1025,7 @@ namespace bytebucket
         req.target().length() > 7 && std::string(req.target()).substr(0, 7) == "/files/" &&
         std::string(req.target()).find("/metadata") != std::string::npos)
       return handle_post_file_metadata(req);
-    
+
     // DELETE /files/{fileId}/metadata/{key} - remove metadata from file
 
     // 404 Not Found

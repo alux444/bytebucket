@@ -41,6 +41,9 @@ namespace bytebucket
   handle_delete_file(const boost::beast::http::request<boost::beast::http::string_body> &req);
 
   boost::beast::http::response<boost::beast::http::string_body>
+  handle_delete_folder(const boost::beast::http::request<boost::beast::http::string_body> &req);
+
+  boost::beast::http::response<boost::beast::http::string_body>
   handle_get_tags(const boost::beast::http::request<boost::beast::http::string_body> &req);
 
   boost::beast::http::response<boost::beast::http::string_body>
