@@ -956,6 +956,108 @@ namespace bytebucket
                                    "application/json", R"({"message":"Folder deleted successfully"})");
   }
 
+  boost::beast::http::response<boost::beast::http::string_body>
+  handle_patch_file_move(const boost::beast::http::request<boost::beast::http::string_body> &req)
+  {
+    std::string target = std::string(req.target());
+    
+    // Extract file ID from /files/{fileId}/move
+    if (target.length() <= 12 || target.substr(0, 7) != "/files/" || target.substr(target.length() - 5) != "/move")
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid file move endpoint");
+    }
+
+    std::string file_id_str = target.substr(7, target.length() - 12); // Remove "/files/" prefix and "/move" suffix
+    
+    if (file_id_str.empty())
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "File ID is required");
+    }
+
+    int file_id;
+    try
+    {
+      file_id = std::stoi(file_id_str);
+    }
+    catch (...)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid file ID format");
+    }
+
+    // Validate Content-Type
+    auto content_type_it = req.find(boost::beast::http::field::content_type);
+    if (content_type_it == req.end() ||
+        content_type_it->value().find("application/json") == std::string::npos)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Content-Type must be application/json");
+    }
+
+    std::string body = req.body();
+    int folder_id;
+
+    size_t folder_pos = body.find("\"folder_id\"");
+    if (folder_pos == std::string::npos)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Missing 'folder_id' field in JSON");
+    }
+
+    size_t colon_pos = body.find(":", folder_pos);
+    size_t number_start = body.find_first_of("0123456789", colon_pos + 1);
+    size_t number_end = body.find_first_not_of("0123456789", number_start);
+    
+    if (colon_pos == std::string::npos || number_start == std::string::npos)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Invalid 'folder_id' field in JSON");
+    }
+
+    try
+    {
+      folder_id = std::stoi(body.substr(number_start, number_end - number_start));
+    }
+    catch (...)
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Failed to parse folder_id. Expected integer value");
+    }
+
+    auto db = Database::create();
+    if (!db)
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   "Database connection failed");
+    }
+
+    auto file_result = db->getFileById(file_id);
+    if (!file_result.success() || !file_result.value.has_value())
+    {
+      return create_error_response(boost::beast::http::status::not_found, req.version(),
+                                   "File not found");
+    }
+
+    auto folder_result = db->getFolderById(folder_id);
+    if (!folder_result.success() || !folder_result.value.has_value())
+    {
+      return create_error_response(boost::beast::http::status::bad_request, req.version(),
+                                   "Target folder not found");
+    }
+
+    auto move_result = db->moveFile(file_id, folder_id);
+    if (!move_result.success() || !move_result.value.has_value() || !move_result.value.value())
+    {
+      return create_error_response(boost::beast::http::status::internal_server_error, req.version(),
+                                   move_result.errorMessage.empty() ? "Failed to move file" : move_result.errorMessage);
+    }
+
+    return create_success_response(boost::beast::http::status::ok, req.version(),
+                                   "application/json", R"({"message":"File moved successfully"})");
+  }
+
   boost::beast::http::message_generator handle_request(boost::beast::http::request<boost::beast::http::string_body> &&req)
   {
     // Handle OPTIONS requests for CORS preflight
@@ -998,6 +1100,10 @@ namespace bytebucket
       return handle_delete_file(req);
 
     // PATCH /files/{fileId}/move
+    if (req.method() == boost::beast::http::verb::patch &&
+        req.target().length() > 12 && std::string(req.target()).substr(0, 7) == "/files/" &&
+        std::string(req.target()).substr(req.target().length() - 5) == "/move")
+      return handle_patch_file_move(req);
 
     // GET /download/{id}
     if (req.method() == boost::beast::http::verb::get &&
