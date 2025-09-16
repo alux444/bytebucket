@@ -99,6 +99,7 @@ namespace bytebucket
     DatabaseResult<bool> setFileMetadata(int fileId, std::string_view key, std::string_view value);
     DatabaseResult<std::string> getFileMetadata(int fileId, std::string_view key) const;
     DatabaseResult<std::vector<std::pair<std::string, std::string>>> getAllFileMetadata(int fileId) const;
+    DatabaseResult<bool> removeFileMetadata(int fileId, std::string_view key);
 
   private:
     explicit Database(sqlite3 *db);
