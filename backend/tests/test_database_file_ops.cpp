@@ -180,8 +180,8 @@ TEST_CASE("Database file operations edge cases", "[database][files][edge]")
 
   SECTION("Add file without creating folder first")
   {
-    // This should fail due to foreign key constraint
-    auto result = test_db->addFile("orphan.txt", 1, 100, "text/plain", "storage_orphan");
+    // This should fail due to foreign key constraint (using non-existent folder ID)
+    auto result = test_db->addFile("orphan.txt", 9999, 100, "text/plain", "storage_orphan");
 
     REQUIRE_FALSE(result.success());
     REQUIRE(result.error == DatabaseError::ForeignKeyConstraint);

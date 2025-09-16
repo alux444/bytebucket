@@ -185,6 +185,20 @@ namespace bytebucket
       sqlite3_free(errMsg);
       return false;
     }
+
+    const char *rootFolderSql = R"(
+      INSERT OR IGNORE INTO folders (id, name, parent_id) 
+      VALUES (1, 'root', NULL);
+    )";
+
+    returnCode = sqlite3_exec(db.get(), rootFolderSql, nullptr, nullptr, &errMsg);
+    if (returnCode != SQLITE_OK)
+    {
+      std::cerr << "Root folder creation error: " << errMsg << std::endl;
+      sqlite3_free(errMsg);
+      return false;
+    }
+
     return true;
   }
 
