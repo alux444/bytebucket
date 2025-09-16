@@ -9,7 +9,7 @@ export interface NavigationItem {
 
 export const useFolderNavigation = (initialFolderId?: number) => {
   const [currentFolderId, setCurrentFolderId] = useState<number | undefined>(initialFolderId);
-  const [navigationPath, setNavigationPath] = useState<NavigationItem[]>([{ id: null, name: "Root" }]);
+  const [navigationPath, setNavigationPath] = useState<NavigationItem[]>([{ id: 1, name: "Root" }]);
 
   const { data: folderContents, isLoading, error, refetch } = useFolderContents(currentFolderId);
 
@@ -22,7 +22,8 @@ export const useFolderNavigation = (initialFolderId?: number) => {
     (index: number) => {
       const targetItem = navigationPath[index];
       if (targetItem) {
-        setCurrentFolderId(targetItem.id || undefined);
+        const targetId = targetItem.id === 1 ? undefined : (targetItem.id ?? undefined);
+        setCurrentFolderId(targetId);
         setNavigationPath(navigationPath.slice(0, index + 1));
       }
     },
@@ -33,18 +34,19 @@ export const useFolderNavigation = (initialFolderId?: number) => {
     if (navigationPath.length > 1) {
       const newPath = navigationPath.slice(0, -1);
       const parentItem = newPath[newPath.length - 1];
-      setCurrentFolderId(parentItem.id || undefined);
+      const parentId = parentItem.id === 1 ? undefined : (parentItem.id ?? undefined);
+      setCurrentFolderId(parentId);
       setNavigationPath(newPath);
     }
   }, [navigationPath]);
 
   const navigateToRoot = useCallback(() => {
     setCurrentFolderId(undefined);
-    setNavigationPath([{ id: null, name: "Root" }]);
+    setNavigationPath([{ id: 1, name: "Root" }]);
   }, []);
 
   const currentFolder: FolderInfo | null = folderContents?.folder || null;
-  const subfolders: SubfolderItem[] = folderContents?.subfolders || [];
+  const subfolders: SubfolderItem[] = (folderContents?.subfolders || []).filter(folder => folder.id !== 1);
   const files: FileItem[] = folderContents?.files || [];
 
   const canNavigateBack = navigationPath.length > 1;
